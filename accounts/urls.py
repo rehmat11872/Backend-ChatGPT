@@ -11,6 +11,6 @@ urlpatterns = [
 
     path("dj-rest-auth/google/login/", views.GoogleLoginView.as_view(), name="google_login"),
     path("~redirect/", views.UserRedirectView.as_view(), name="redirect"),
-
     path("dj-rest-auth/microsoft/login/", views.MicrosoftLoginView.as_view(), name="microsoft_login"),
+    path("dj-rest-auth/apple/login/", views.AppleLoginView.as_view(), name="microsoft_login"),
 ]

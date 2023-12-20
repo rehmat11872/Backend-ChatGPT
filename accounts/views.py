@@ -10,7 +10,7 @@ from django.contrib.auth import update_session_auth_hash
 from accounts.serializers import MyTokenObtainPairSerializer, UserSerializer, ChangePasswordSerializer, UserProfileSerializer
 from rest_framework import generics
 from django.conf import settings
-from project.settings import  GOOGLE_REDIRECT_URL, MICROSOFT_REDIRECT_URL
+from project.settings import  GOOGLE_REDIRECT_URL, MICROSOFT_REDIRECT_URL, APPlE_REDIRECT_URL
 from rest_framework import serializers, status
 
 class UserRegistrationView(APIView):
@@ -114,8 +114,8 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
 
 
 from allauth.socialaccount.providers.microsoft.views import MicrosoftGraphOAuth2Adapter
-from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-from dj_rest_auth.registration.views import SocialLoginView
+
+
 
 class MicrosoftLoginView(SocialLoginView):
     adapter_class = MicrosoftGraphOAuth2Adapter
@@ -125,3 +125,17 @@ class MicrosoftLoginView(SocialLoginView):
     @property
     def username(self):
         return self.adapter.user.email
+
+
+
+from allauth.socialaccount.providers.apple.views import AppleOAuth2Adapter
+
+class AppleLoginView(SocialLoginView):
+    adapter_class = MicrosoftGraphOAuth2Adapter
+    callback_url = APPlE_REDIRECT_URL
+    client_class = OAuth2Client
+
+    @property
+    def username(self):
+        return self.adapter.user.email
+    

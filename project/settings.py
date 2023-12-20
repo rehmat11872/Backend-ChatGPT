@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'allauth.socialaccount.providers.microsoft',
+    'allauth.socialaccount.providers.apple',
 
     #apps
     'accounts',
@@ -179,8 +180,11 @@ USE_TZ = True
 
 
 # GOOGLE_REDIRECT_URL = 'http://127.0.0.1:8000'
-GOOGLE_REDIRECT_URL = 'http://localhost:3000'
-MICROSOFT_REDIRECT_URL = 'http://localhost:3000'
+
+GOOGLE_REDIRECT_URL = 'http://127.0.0.1:5173'
+# GOOGLE_REDIRECT_URL = 'http://localhost:3000'
+MICROSOFT_REDIRECT_URL = 'http://127.0.0.1:5173'
+APPlE_REDIRECT_URL = 'http://localhost:3000'
 
 
 # Static files (CSS, JavaScript, Images)
