@@ -98,43 +98,43 @@ JWT_AUTH = {
     'JWT_AUTH_HEADER_PREFIX': 'JWT',
 }
 
-# Enforce HTTPS
-SECURE_SSL_REDIRECT = True
+# # Enforce HTTPS
+# SECURE_SSL_REDIRECT = True
 
-# Set HSTS (HTTP Strict Transport Security) to ensure future requests are HTTPS
-SECURE_HSTS_SECONDS = 31536000  # One year
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
+# # Set HSTS (HTTP Strict Transport Security) to ensure future requests are HTTPS
+# SECURE_HSTS_SECONDS = 31536000  # One year
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
 
-# Ensure browsers only set cookies over HTTPS
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# # Ensure browsers only set cookies over HTTPS
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
 
 
 
 # CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_CREDENTIALS = True
+# CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_WHITELIST = (
     # 'http://localhost:3000',
     # 'http://127.0.0.1:5173',
-    'https://lawtabby.netlify.app'
+    'https://lawtabby.netlify.app',
 )
 
-CORS_ALLOW_METHODS = [
-    "GET",
-    "POST",
-    "PUT",
-    "PATCH",
-    "DELETE",
-    "OPTIONS",
-]
+# CORS_ALLOW_METHODS = [
+#     "GET",
+#     "POST",
+#     "PUT",
+#     "PATCH",
+#     "DELETE",
+#     "OPTIONS",
+# ]
 
-CORS_ALLOW_HEADERS = [
-    "Content-Type",
-    "Authorization",
-    # ...
-]
+# CORS_ALLOW_HEADERS = [
+#     "Content-Type",
+#     "Authorization",
+#     # ...
+# ]
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 
