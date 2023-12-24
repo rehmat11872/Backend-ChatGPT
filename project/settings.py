@@ -103,6 +103,7 @@ CORS_ORIGIN_ALLOW_ALL = True
 CORS_ORIGIN_WHITELIST = (
     # 'http://localhost:3000',
     'http://127.0.0.1:5173',
+    'https://lawtabby.netlify.app'
 )
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
