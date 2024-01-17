@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sign in with Apple</title>
+</head>
+<body>
+    <h1>Welcome to Sign in with Apple</h1>
+    <form action="{% url 'apple_sign_in' %}" method="post">
+        {% csrf_token %}
+        <input type="submit" value="Sign in with Apple">
+    </form>
+</body>
+</html>

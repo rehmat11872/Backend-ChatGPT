@@ -23,14 +23,27 @@ class TimeStampedModel(models.Model):
 
 
 class SubscriptionPlan(TimeStampedModel):
+    DURATION_CHOICES = [
+        ('free_trial', 'Free Trial'),
+        ('monthly', 'Monthly'),
+        ('yearly', 'Yearly'),
+    ]
     name = models.CharField(_("Name"), max_length=254, unique=True)
-    price = models.DecimalField(_("Price"), max_digits=10, decimal_places=2)
+    duration = models.CharField(_("Subscription Duration"), max_length=10, choices=DURATION_CHOICES, default='free_trial')
+    # price = models.DecimalField(_("Price"), max_digits=10, decimal_places=2)
+    price = models.IntegerField(default=0) #cent
     features = models.TextField(_("Features"), null=True, blank=True)
     free_trial = models.BooleanField(default=True)
    
 
     def __str__(self):
         return self.name
+    
+
+    
+    def get_display_price(self):
+        print("{0:.2f}".format(self.price / 100), 'testtttt')
+        return "{0:.2f}".format(self.price / 100)
 
 class Subscription(TimeStampedModel):
     user = models.OneToOneField(
@@ -46,6 +59,9 @@ class Subscription(TimeStampedModel):
     end_date = models.DateTimeField(_("End Date"), null=True, blank=True)
     is_active = models.BooleanField(_("Is Active"), default=True)
     is_upgraded = models.BooleanField(default=False)
+    payment_id = models.CharField(_("Payment ID"), max_length=100, null=True, blank=True)
+    amount_paid = models.DecimalField(_("Amount Paid"), max_digits=10, decimal_places=2, null=True, blank=True)
+    payment_status = models.CharField(_("Payment Status"), max_length=20, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # Set a default start_date if it is not provided
@@ -76,6 +92,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     last_login = models.DateTimeField(null=True, blank=True)
     date_joined = models.DateTimeField(auto_now_add=True)
+    
     
 
     USERNAME_FIELD = 'email'
@@ -120,7 +137,8 @@ def create_auth_token(sender, instance=None, created=False, **kwargs):
             user=instance,
             plan=free_trial_plan,
             start_date=instance.date_joined,
-            end_date=instance.date_joined + timedelta(days=30),  # Adjust the trial period as needed
+            # end_date=instance.date_joined + timedelta(days=30), 
+            end_date = None
         )
 
 
