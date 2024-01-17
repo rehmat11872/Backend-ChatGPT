@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 
 import os
 import datetime
+from decouple import config
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,12 +22,12 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/1.11/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'wb1!)(-8z)1gmim+w0pk8ag&dwgkt1)j&_4e3ohm=b%s)8hib_'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 
 
 # Application definition
@@ -53,6 +54,9 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.microsoft',
     'allauth.socialaccount.providers.apple',
 
+    
+    
+
     #apps
     'accounts',
     'payment',
@@ -78,7 +82,6 @@ ROOT_URLCONF = 'project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # 'DIRS': [],
         'DIRS': [BASE_DIR, 'templates/',],
         'APP_DIRS': True,
         'OPTIONS': {
@@ -98,45 +101,34 @@ JWT_AUTH = {
     'JWT_AUTH_HEADER_PREFIX': 'JWT',
 }
 
-# # Enforce HTTPS
-# SECURE_SSL_REDIRECT = True
-
-# # Set HSTS (HTTP Strict Transport Security) to ensure future requests are HTTPS
-# SECURE_HSTS_SECONDS = 31536000  # One year
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True
-
-# # Ensure browsers only set cookies over HTTPS
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
 
 
 
-# CORS_ORIGIN_ALLOW_ALL = True
+
+CORS_ORIGIN_ALLOW_ALL = True
 # CORS_ALLOW_ALL_ORIGINS = True
-# CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOW_CREDENTIALS = True 
+# CORS_ALLOW_CREDENTIALS = True 
+# CORS_ORIGIN_WHITELIST = (
+#     # 'http://localhost:3000',
+#     'http://127.0.0.1:5173',
+#     'https://lawtabby.netlify.app',
+#     'https://3b1f-119-63-138-239.ngrok-free.app',
+# )
+
 CORS_ORIGIN_WHITELIST = (
-    # 'http://localhost:3000',
-    # 'http://127.0.0.1:5173',
-    'https://lawtabby.netlify.app',
+    # 'https://3b1f-119-63-138-239.ngrok-free.app',
+    # Add other allowed origins as needed
 )
 
-# CORS_ALLOW_METHODS = [
-#     "GET",
-#     "POST",
-#     "PUT",
-#     "PATCH",
-#     "DELETE",
-#     "OPTIONS",
-# ]
+CORS_ALLOWED_ORIGINS = [
+    # "https://3b1f-119-63-138-239.ngrok-free.app",
+    # Add other allowed origins as needed
+]
 
-# CORS_ALLOW_HEADERS = [
-#     "Content-Type",
-#     "Authorization",
-#     # ...
-# ]
+CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
+CORS_ALLOW_HEADERS = ['*']
+
+
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 
@@ -166,13 +158,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# REST_FRAMEWORK = {
-#     # Use Django's standard `django.contrib.auth` permissions,
-#     # or allow read-only access for unauthenticated users.
-#     'DEFAULT_PERMISSION_CLASSES': [
-#         'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
-#     ]
-# }
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -185,6 +170,14 @@ JWT_AUTH = {
     'JWT_AUTH_HEADER_PREFIX': 'JWT',
     'JWT_EXPIRATION_DELTA': datetime.timedelta(seconds=100000)
 }
+
+
+AUTHENTICATION_BACKENDS = [
+    # ...
+    'allauth.account.auth_backends.AuthenticationBackend',
+    # ...
+]
+
 
 
 ACCOUNT_USERNAME_REQUIRED = False
@@ -213,11 +206,12 @@ USE_TZ = True
 
 
 # GOOGLE_REDIRECT_URL = 'http://127.0.0.1:8000'
-
 GOOGLE_REDIRECT_URL = 'http://127.0.0.1:5173'
 # GOOGLE_REDIRECT_URL = 'http://localhost:3000'
 MICROSOFT_REDIRECT_URL = 'http://127.0.0.1:5173'
-APPlE_REDIRECT_URL = 'http://localhost:3000'
+# APPlE_REDIRECT_URL = 'http://localhost:3000'
+APPlE_REDIRECT_URL = 'https://3b1f-119-63-138-239.ngrok-free.app'
+
 
 
 # Static files (CSS, JavaScript, Images)
@@ -235,33 +229,71 @@ STATICFILES_DIRS = (
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Email configuration
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = 'iamtahir727@gmail.com' # Replace with your email address
-# EMAIL_HOST_PASSWORD = 'jvyaysudqpyowece'# Replace with your email password
-EMAIL_HOST_USER = 'raorehmat11@gmail.com' # Replace with your email address
-EMAIL_HOST_PASSWORD='wpmgynkchvbkgcii'
+# Email settings
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 
-#stripe payment
-STRIPE_SECRET_KEY = 'sk_test_51JeDolGB4JYTbuORxnM5WwmuRGHf9KN7LSGnNAkd0D3sGymHhLeOxjFJa1JYemWs08oKdzFMW3VDybh3GFjUrRGu00h5c89flE'
-STRIPE_PUBLISHABLE_KEY = 'pk_test_51JeDolGB4JYTbuOR1quYyXWaa0060OlApbeYRRIhOeNBK8DyqDNggLNv9FS5YD6Q3FOsIGCbxfLAVd5izxiPb5HQ00kMW1xXlm'
 
-# google sign in credentials
-# settings.py
+
+# Stripe settings
+STRIPE_PUBLIC_KEY = config('STRIPE_PUBLIC_KEY', default='')
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+
+
 
 # SOCIALACCOUNT_PROVIDERS = {
-#     'google': {
-#         'APP': {
-#             'client_id': '28123279459-4cvinnj0ujpm46b97f1jecefh75jn876.apps.googleusercontent.com',
-#             'secret': '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',
+#     "apple": {
+#         "APP": {
+#             # Your service identifier.
+#             "client_id": "com.lawtabby.pdf.sid",
+
+#             # The Key ID (visible in the "View Key Details" page).
+#             "secret": "W63JQDWXV8",
+
+#              # Member ID/App ID Prefix -- you can find it below your name
+#              # at the top right corner of the page, or it’s your App ID
+#              # Prefix in your App ID.
+#             "key": "U86KGR5XFU",
+
+#             "settings": {
+#                 # The certificate you downloaded when generating the key.
+#                 "certificate_key": """-----BEGIN PRIVATE KEY-----
+#                 MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgCRDgZhaN/Sspvlb7
+#                 ryE8D+YChBC2uH97BvNGOKXpHxagCgYIKoZIzj0DAQehRANCAAQdUnewuWFxDIuw
+#                 2Mo07NB7fmGzsY+8Proz3t87y5kJuGgCb9QPTVwusFt7q9QxVHJS0uFOn6UAGKvB
+#                 AAhUAupv
+#                 -----END PRIVATE KEY-----
+#                 """
+#             }
 #         }
 #     }
 # }
 
 
+
+
 # SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = 'your-google-client-id'
 # SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = 'your-google-client-secret'
+
+
+# Site ID
+SITE_ID = config('SITE_ID', default=1, cast=int)
+
+
+# Apple Sign In settings
+SOCIAL_AUTH_APPLE_KEY_ID = config('SOCIAL_AUTH_APPLE_KEY_ID', default='')
+SOCIAL_AUTH_APPLE_TEAM_ID = config('SOCIAL_AUTH_APPLE_TEAM_ID', default='')
+CLIENT_ID = config('CLIENT_ID', default='')
+SOCIAL_AUTH_APPLE_PRIVATE_KEY = config('SOCIAL_AUTH_APPLE_PRIVATE_KEY', default='')
+
+
+# PayPal settings
+PAYPAL_CLIENT_ID = config('PAYPAL_CLIENT_ID', default='')
+PAYPAL_CLIENT_SECRET = config('PAYPAL_CLIENT_SECRET', default='')
+PAYPAL_WEBHOOK_ID = config('PAYPAL_WEBHOOK_ID', default='')
+
