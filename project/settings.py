@@ -108,21 +108,17 @@ JWT_AUTH = {
 CORS_ORIGIN_ALLOW_ALL = True
 # CORS_ALLOW_ALL_ORIGINS = True
 # CORS_ALLOW_CREDENTIALS = True 
-# CORS_ORIGIN_WHITELIST = (
-#     # 'http://localhost:3000',
-#     'http://127.0.0.1:5173',
-#     'https://lawtabby.netlify.app',
-#     'https://3b1f-119-63-138-239.ngrok-free.app',
-# )
-
 CORS_ORIGIN_WHITELIST = (
-    # 'https://3b1f-119-63-138-239.ngrok-free.app',
-    # Add other allowed origins as needed
+    # 'http://localhost:3000',
+    # 'http://127.0.0.1:5173',
+    # 'https://lawtabby.netlify.app',
+    'https://ai-lawyer.neuracase.com',
 )
 
+
+
 CORS_ALLOWED_ORIGINS = [
-    # "https://3b1f-119-63-138-239.ngrok-free.app",
-    # Add other allowed origins as needed
+    "https://ai-lawyer.neuracase.com",
 ]
 
 CORS_ALLOW_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
@@ -206,11 +202,11 @@ USE_TZ = True
 
 
 # GOOGLE_REDIRECT_URL = 'http://127.0.0.1:8000'
-GOOGLE_REDIRECT_URL = 'http://127.0.0.1:5173'
+GOOGLE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
 # GOOGLE_REDIRECT_URL = 'http://localhost:3000'
-MICROSOFT_REDIRECT_URL = 'http://127.0.0.1:5173'
+MICROSOFT_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
 # APPlE_REDIRECT_URL = 'http://localhost:3000'
-APPlE_REDIRECT_URL = 'https://3b1f-119-63-138-239.ngrok-free.app'
+APPlE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
 
 
 
