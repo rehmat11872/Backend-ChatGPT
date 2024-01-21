@@ -46,8 +46,8 @@ class CreateCheckoutSessionAPIView(APIView):
         subscription_id = self.kwargs["pk"]
         print(subscription_id, 'subscription_id')
         subscription = get_object_or_404(SubscriptionPlan, id=subscription_id)
-        YOUR_DOMAIN = "http://127.0.0.1:8000"
-        YOUR_FRONTEND_DOMAIN = "http://localhost:5173"
+        # YOUR_DOMAIN = "http://127.0.0.1:8000"
+        YOUR_FRONTEND_DOMAIN = "https://ai-lawyer.neuracase.com"
 
         checkout_session = stripe.checkout.Session.create(
             payment_method_types=['card'],
