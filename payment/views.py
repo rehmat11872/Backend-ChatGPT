@@ -47,7 +47,8 @@ class CreateCheckoutSessionAPIView(APIView):
         print(subscription_id, 'subscription_id')
         subscription = get_object_or_404(SubscriptionPlan, id=subscription_id)
         # YOUR_DOMAIN = "http://127.0.0.1:8000"
-        YOUR_FRONTEND_DOMAIN = "https://ai-lawyer.neuracase.com"
+        YOUR_FRONTEND_DOMAIN = "http://localhost:5173"
+        # YOUR_FRONTEND_DOMAIN = "https://ai-lawyer.neuracase.com"
 
         checkout_session = stripe.checkout.Session.create(
             payment_method_types=['card'],
@@ -78,6 +79,7 @@ class CreateCheckoutSessionAPIView(APIView):
 
 @csrf_exempt
 def stripe_webhook(request):
+  print('working')
   payload = request.body
   sig_header = request.META['HTTP_STRIPE_SIGNATURE']
   event = None
@@ -95,7 +97,7 @@ def stripe_webhook(request):
   
 
   # Handle the checkout.session.completed event
-  if event['type'] == 'checkout.session.completed':
+  if event['type'] == 'checkout.session.completed' or event.type == 'payment_intent.succeeded':
     # Retrieve the session. If you require line items in the response, you may include them by expanding line_items.
     session = stripe.checkout.Session.retrieve(
       event['data']['object']['id'],
