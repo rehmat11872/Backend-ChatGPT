@@ -201,13 +201,11 @@ USE_L10N = True
 USE_TZ = True
 
 
-# GOOGLE_REDIRECT_URL = 'http://127.0.0.1:8000'
-GOOGLE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
-# GOOGLE_REDIRECT_URL = 'http://localhost:3000'
-MICROSOFT_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
-# APPlE_REDIRECT_URL = 'http://localhost:3000'
-APPlE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
 
+GOOGLE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
+MICROSOFT_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
+APPlE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
+# APPlE_REDIRECT_URL = 'https://377a-119-63-138-173.ngrok-free.app'
 
 
 # Static files (CSS, JavaScript, Images)
@@ -242,33 +240,30 @@ STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
 
 
-# SOCIALACCOUNT_PROVIDERS = {
-#     "apple": {
-#         "APP": {
-#             # Your service identifier.
-#             "client_id": "com.lawtabby.pdf.sid",
 
-#             # The Key ID (visible in the "View Key Details" page).
-#             "secret": "W63JQDWXV8",
 
-#              # Member ID/App ID Prefix -- you can find it below your name
-#              # at the top right corner of the page, or it’s your App ID
-#              # Prefix in your App ID.
-#             "key": "U86KGR5XFU",
+SOCIALACCOUNT_PROVIDERS = {
+    'apple': {
+        "APP": {
+            "client_id": config('SOCIAL_APPLE_CLIENT_ID'),
+            "secret": config('SOCIAL_APPLE_SECRET'),
+            "key": config('SOCIAL_APPLE_KEY'),
+            "settings": { 
+"certificate_key": """-----BEGIN PRIVATE KEY-----
+MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgCRDgZhaN/Sspvlb7
+ryE8D+YChBC2uH97BvNGOKXpHxagCgYIKoZIzj0DAQehRANCAAQdUnewuWFxDIuw
+2Mo07NB7fmGzsY+8Proz3t87y5kJuGgCb9QPTVwusFt7q9QxVHJS0uFOn6UAGKvB
+AAhUAupv
+-----END PRIVATE KEY-----"""
 
-#             "settings": {
-#                 # The certificate you downloaded when generating the key.
-#                 "certificate_key": """-----BEGIN PRIVATE KEY-----
-#                 MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgCRDgZhaN/Sspvlb7
-#                 ryE8D+YChBC2uH97BvNGOKXpHxagCgYIKoZIzj0DAQehRANCAAQdUnewuWFxDIuw
-#                 2Mo07NB7fmGzsY+8Proz3t87y5kJuGgCb9QPTVwusFt7q9QxVHJS0uFOn6UAGKvB
-#                 AAhUAupv
-#                 -----END PRIVATE KEY-----
-#                 """
-#             }
-#         }
-#     }
-# }
+            }
+        },
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'}
+    }
+}
+
+
 
 
 

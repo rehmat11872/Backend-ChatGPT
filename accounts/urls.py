@@ -12,10 +12,6 @@ urlpatterns = [
     path("dj-rest-auth/google/login/", views.GoogleLoginView.as_view(), name="google_login"),
     path("~redirect/", views.UserRedirectView.as_view(), name="redirect"),
     path("dj-rest-auth/microsoft/login/", views.MicrosoftLoginView.as_view(), name="microsoft_login"),
-    path("dj-rest-auth/apple/login/", views.AppleLoginView.as_view(), name="microsoft_login"),
-    # path("dj-rest-auth/apple/login/", views.validate_apple_signin, name="microsoft_login"),
+    path("dj-rest-auth/apple/login/", views.AppleLoginView.as_view(), name="apple_login"),
 
-    path('index/', views.index, name='index'),
-    path('apple/sign-in/', views.apple_sign_in, name='apple_sign_in'),
-    path('apple/callback/', views.apple_callback, name='apple_callback'),
 ]
