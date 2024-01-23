@@ -18,6 +18,10 @@ from decouple import config
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+# Define the temporary path
+TEMP_PATH = os.path.join(BASE_DIR, 'temp_files')
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.11/howto/deployment/checklist/
 
@@ -60,6 +64,7 @@ INSTALLED_APPS = [
     #apps
     'accounts',
     'payment',
+    'pdf',
 ]
 
 MIDDLEWARE = [
