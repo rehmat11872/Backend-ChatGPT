@@ -115,7 +115,7 @@ CORS_ORIGIN_ALLOW_ALL = True
 # CORS_ALLOW_CREDENTIALS = True 
 CORS_ORIGIN_WHITELIST = (
     # 'http://localhost:3000',
-    # 'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
     # 'https://lawtabby.netlify.app',
     'https://ai-lawyer.neuracase.com',
 )
