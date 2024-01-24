@@ -1,3 +1,4 @@
+import os
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -5,10 +6,12 @@ from PyPDF2 import PdfReader, PdfWriter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.http import FileResponse
-from .models import ProtectedPDF
+from .models import ProtectedPDF, PDFImageConversion
 from django.shortcuts import get_object_or_404
-from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf
-from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer
+from django.core.files.base import ContentFile
+from django.contrib.sites.shortcuts import get_current_site  
+from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file
+from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer
 
 
 class ProtectPDFView(APIView):
@@ -26,7 +29,17 @@ class ProtectPDFView(APIView):
         try:
             protected_file, full_url = protect_pdf(request, input_file, pdf_password, request.user)
             serializer = ProtectedPDFSerializer(protected_file)
-            return Response({'message': 'PDF protection completed.', 'protected_pdf': serializer.data, 'full_url': full_url})
+
+            response_data = {
+                'message': 'PDF protection completed',
+                'split_pdf': {
+                    'id': serializer.data['id'],
+                    'user': serializer.data['user'],
+                    'created_at': serializer.data['created_at'],
+                    'protected_file': full_url,
+                    },
+                }
+            return Response(response_data)
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -56,13 +69,25 @@ class MergePDFView(APIView):
             user = request.user if request.user.is_authenticated else None
             merged_pdf, full_url = merge_pdf(request, user, pdf_files)
             serializer = MergedPDFSerializer(merged_pdf)
-            return Response({'message': 'PDFs merged and saved successfully.', 'merged_pdf': serializer.data, 'full_url': full_url})
+
+            response_data = {
+                'message': 'PDFs merged and saved successfully',
+                'split_pdf': {
+                    'id': serializer.data['id'],
+                    'user': serializer.data['user'],
+                    'created_at': serializer.data['created_at'],
+                    'merged_file': full_url,
+                    },
+                }
+            return Response(response_data)
+
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
 class CompressPDFView(APIView):
+    permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request, format=None):
@@ -78,12 +103,25 @@ class CompressPDFView(APIView):
                 user = request.user 
                 compressed_pdf, full_url = compress_pdf(request, user, input_pdf, compression_quality)
                 serializer = CompressedPDFSerializer(compressed_pdf)
-                return Response({'message': 'PDF compression completed.', 'compressed_pdf': serializer.data, 'full_url': full_url})
+
+                response_data = {
+                'message': 'PDF compression completed',
+                'split_pdf': {
+                    'id': serializer.data['id'],
+                    'user': serializer.data['user'],
+                    'created_at': serializer.data['created_at'],
+                    'compressed_file': full_url,
+                    },
+                }
+                return Response(response_data)
+
             except Exception as e:
                 return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SplitPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
         start_page = int(request.data.get('start_page', 0))
@@ -96,6 +134,72 @@ class SplitPDFView(APIView):
             user = request.user 
             split_pdf_instance, full_url= split_pdf(request, input_pdf, start_page, end_page, user)
             serializer = SplitPDFSerializer(split_pdf_instance)
-            return Response({'message': 'PDF splitting completed.', 'split_pdf': serializer.data, 'full_url': full_url})
+
+            response_data = {
+                'message': 'PDF splitting completed.',
+                'split_pdf': {
+                    'id': serializer.data['id'],
+                    'user': serializer.data['user'],
+                    'created_at': serializer.data['created_at'],
+                    'split_pdf': full_url,
+                },
+            }
+            return Response(response_data)
+
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+import shutil
+class PDFToImageConversionView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, format=None):
+        input_pdf = request.FILES.get('input_pdf', None)
+
+        if not input_pdf:
+            return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = request.user 
+            # output_folder = 'pdf_images'
+            image_paths = convert_pdf_to_image(input_pdf)
+
+            if len(image_paths) == 1:
+                print('working')
+                # Only one image, save it directly
+                pdf_image_conversion = PDFImageConversion(user=user)
+                pdf_image_conversion.zip_file.save(f'page_1.jpeg', ContentFile(image_paths[0]))
+                pdf_image_conversion.save()
+            else:
+                # Multiple images, create a zip file
+                # zip_file_path = create_zip_file(image_paths, user)
+
+                zip_file_relative_path, zip_content = create_zip_file(image_paths, user)
+                pdf_image_conversion = PDFImageConversion(user=user)
+                pdf_image_conversion.zip_file.save(zip_file_relative_path, ContentFile(zip_content))
+                pdf_image_conversion.save()
+
+                shutil.rmtree(os.path.dirname(zip_file_relative_path))
+
+
+            # Construct the full URL
+            current_site = get_current_site(request)
+            base_url = f'http://{current_site.domain}'
+            zip_file_full_url = f'{base_url}{pdf_image_conversion.zip_file.url}'
+
+            serializer = PDFImageConversionSerializer(pdf_image_conversion)
+            response_data = {
+                'message': 'PDF to image conversion completed.',
+                'conversion_data': {
+                    'id': serializer.data['id'],
+                    'user': serializer.data['user'],
+                    'created_at': serializer.data['created_at'],
+                    'zip_file': zip_file_full_url,
+                },
+            }
+            return Response(response_data)
+
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

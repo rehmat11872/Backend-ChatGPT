@@ -46,3 +46,8 @@ class SplitPDF(models.Model):
 
     def __str__(self):
         return f"Split PDF {self.id}"
+
+class PDFImageConversion(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    zip_file = models.FileField(upload_to='pdf_images/zips/', null=True, blank=True)   
+    created_at = models.DateTimeField(auto_now_add=True) 
