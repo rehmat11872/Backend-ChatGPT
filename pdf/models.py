@@ -51,3 +51,18 @@ class PDFImageConversion(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     zip_file = models.FileField(upload_to='pdf_images/zips/', null=True, blank=True)   
     created_at = models.DateTimeField(auto_now_add=True) 
+
+
+class WordToPdfConversion(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    word_to_pdfs = models.ManyToManyField('WordToPdf', related_name='word_to_pdfs')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class WordToPdf(models.Model):
+    word_to_pdf = models.FileField(upload_to='word_to_pdf/', null=True, blank=True)
+
+
+class OrganizedPdf(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    organize_pdf = models.FileField(upload_to='organized_pdfs/')
+    created_at = models.DateTimeField(auto_now_add=True)

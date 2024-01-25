@@ -1,4 +1,5 @@
 import os
+import shutil
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,12 +7,12 @@ from PyPDF2 import PdfReader, PdfWriter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.http import FileResponse
-from .models import ProtectedPDF, PDFImageConversion
+from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.contrib.sites.shortcuts import get_current_site  
-from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file
-from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer
+from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, word_to_pdf, organize_pdf
+from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer
 
 
 class ProtectPDFView(APIView):
@@ -104,6 +105,8 @@ class CompressPDFView(APIView):
                 compressed_pdf, full_url = compress_pdf(request, user, input_pdf, compression_quality)
                 serializer = CompressedPDFSerializer(compressed_pdf)
 
+                
+
                 response_data = {
                 'message': 'PDF compression completed',
                 'split_pdf': {
@@ -150,7 +153,7 @@ class SplitPDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-import shutil
+
 class PDFToImageConversionView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -201,5 +204,63 @@ class PDFToImageConversionView(APIView):
             }
             return Response(response_data)
 
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class WordToPdfConversionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, format=None):
+        input_files = request.FILES.getlist('input_files')
+
+        if not input_files:
+            return Response({'error': 'No input files provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = request.user
+            conversion_instance = WordToPdfConversion(user=user)
+            conversion_instance.save()
+
+            converted_files = word_to_pdf(input_files)
+
+            for converted_file in converted_files:
+                word_to_pdf_instance = WordToPdf(word_to_pdf=converted_file)
+                word_to_pdf_instance.save()
+                conversion_instance.word_to_pdfs.add(word_to_pdf_instance)
+
+            conversion_instance.save()
+
+            serializer = WordToPdfConversionSerializer(conversion_instance, context={'request': request})
+            return Response({'message': 'Word to PDF conversion completed.', 'conversion_data': serializer.data})
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class OrganizePDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, format=None):
+        input_pdf = request.FILES.get('input_pdf', None)
+        user_order = request.data.get('user_order', '')
+        try:
+            # Convert the string to a list
+            user_order = list(map(int, user_order.strip('[]').split(',')))
+            print(type(user_order))
+        except ValueError:
+            return Response({'error': 'Invalid user order format.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        if not input_pdf or not user_order:
+            return Response({'error': 'No input PDF file or user order provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = request.user
+            user_order = list(map(int, user_order))  
+            converted_file = organize_pdf(input_pdf, user_order, user)
+
+            serializer = OrganizedPdfSerializer(converted_file, context={'request': request})
+            return Response({'message': 'PDF pages organized successfully.', 'organized_data': serializer.data})
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

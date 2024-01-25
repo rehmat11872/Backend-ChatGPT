@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import ProtectPDFView, DownloadProtectedPDFView, MergePDFView, CompressPDFView, SplitPDFView, PDFToImageConversionView
+from .views import ProtectPDFView, DownloadProtectedPDFView, MergePDFView, CompressPDFView, SplitPDFView, PDFToImageConversionView, WordToPdfConversionView, OrganizePDFView
 
 urlpatterns = [
     #protected_pdf
@@ -14,4 +14,8 @@ urlpatterns = [
     path('split_pdf/', SplitPDFView.as_view(), name='split_pdf'),
     #pdf to image/jpg
     path('pdf_to_image/', PDFToImageConversionView.as_view(), name='pdf_to_image'),
+    #word to pdf
+    path('word_to_pdf/', WordToPdfConversionView.as_view(), name='word_to_pdf'),
+    #organize pdf
+    path('organize_pdf/', OrganizePDFView.as_view(), name='organize_pdf'),
 ]

@@ -1,13 +1,17 @@
 import os
 import fitz
+import PyPDF2
+import tempfile
 from PIL import Image
 from io import BytesIO
+import concurrent.futures
+from docx2pdf import convert
 from PyPDF2 import PdfReader, PdfWriter
 from django.core.files.base import ContentFile
 from zipfile import ZipFile
 from django.contrib.sites.shortcuts import get_current_site  
 from rest_framework.reverse import reverse
-from .models import ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF
+from .models import ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF, OrganizedPdf
 
 from django.conf import settings
 
@@ -135,43 +139,6 @@ def get_compression_quality(choice):
 
 
 
-# def split_pdf(request, input_pdf, start_page, end_page, user):
-#     pdf_reader = PdfReader(input_pdf)
-#     # pdf_writer = PdfWriter()
-
-
-#     ranges = []
-#     while True:
-#         start_page = start_page
-#         end_page = end_page
-#         ranges.append((start_page, end_page))
-
-#         # more_ranges = input("Do you want to add another range? (yes/no): ").lower()
-#         # if more_ranges != 'yes':
-#         #     break
-
-#     for i, (start_page, end_page) in enumerate(ranges):
-#         pdf_writer = pdf_reader()
-#         for page_num in range(start_page, end_page + 1):
-#             pdf_writer.addPage(pdf_reader.getPage(page_num))
-
-#     # for page_num in range(start_page, end_page + 1):
-#     #     pdf_writer.add_page(pdf_reader.pages[page_num])
-
-#     buffer = BytesIO()
-#     pdf_writer.write(buffer)
-
-#     # Create a new SplitPDF instance and save it
-#     split_pdf_instance = SplitPDF(start_page=start_page, end_page=end_page)
-#     split_pdf_instance.split_pdf.save(f'split.pdf', ContentFile(buffer.getvalue()))
-#     split_pdf_instance.save()
-
-#     current_site = get_current_site(request)
-#     base_url = f'http://{current_site.domain}'
-#     full_url = f'{base_url}{split_pdf_instance.split_pdf.url}'
-
-#     return split_pdf_instance, full_url
-
 
 def split_pdf(request, input_pdf, start_page, end_page, user):
     pdf_reader = PdfReader(input_pdf)
@@ -237,4 +204,74 @@ def create_zip_file(images, user):
 
 
 
+#Word to pdf
 
+def perform_conversion(input_file, output_file):
+    if input_file.name.endswith(".docx"):
+        # Save the InMemoryUploadedFile to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
+            temp_docx.write(input_file.read())
+            temp_docx_path = temp_docx.name
+
+        try:
+            convert(temp_docx_path, output_file)
+            return output_file
+        except Exception as e:
+            print(f"Error during conversion: {e}")
+        finally:
+            # Remove the temporary file
+            os.remove(temp_docx_path)
+    else:
+        raise ValueError("Unsupported file format")
+
+
+
+def word_to_pdf(input_files):
+    converted_files = []
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+
+        for input_file in input_files:
+            output_file = f"{input_file.name.split('.')[0]}_output.pdf"
+            futures.append(executor.submit(perform_conversion, input_file, output_file))
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                result = future.result()
+                if result:
+                    converted_files.append(result)
+                    os.remove(result)
+            except Exception as e:
+                print(f"Error: {e}")
+
+    return converted_files
+
+
+
+
+def organize_pdf(input_pdf, user_order, user):
+    with input_pdf.open(mode='rb') as pdf_file:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        total_pages = len(pdf_reader.pages)
+
+        # Check if the user's order is valid
+        if sorted(user_order) != list(range(1, total_pages + 1)):
+            raise ValueError("Invalid page order. Please enter a valid order.")
+
+        pdf_writer = PyPDF2.PdfWriter()
+        for page_number in user_order:
+            pdf_writer.add_page(pdf_reader.pages[page_number - 1])  # Adjusting for 0-based indexing
+
+        # Create a BytesIO buffer and write the PDF content
+        buffer = BytesIO()
+        pdf_writer.write(buffer)
+        buffer.seek(0)
+
+        # Save the organized PDF to the OrganizedPdf model
+        organized_pdf_instance = OrganizedPdf(user=user)
+        organized_pdf_instance.organize_pdf.save(f"organized_output.pdf", ContentFile(buffer.getvalue()))
+        organized_pdf_instance.save()
+
+        print("PDF successfully organized.")
+        return organized_pdf_instance
