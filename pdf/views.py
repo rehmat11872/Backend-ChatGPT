@@ -127,8 +127,10 @@ class SplitPDFView(APIView):
 
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
-        start_page = int(request.data.get('start_page', 0))
-        end_page = int(request.data.get('end_page', 0))
+        start_page = int(request.data.get('start_page', 0))- 1
+        end_page = int(request.data.get('end_page', 0))- 1
+
+        print(start_page, end_page, 'print')
 
         if not input_pdf:
             return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
