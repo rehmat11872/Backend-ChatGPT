@@ -47,7 +47,7 @@ class WordToPdfSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request:
             current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
+            base_url = f'https://{current_site.domain}'
             return f"{base_url}{settings.MEDIA_URL}{obj.word_to_pdf.name}"
         return None
 
@@ -68,6 +68,6 @@ class OrganizedPdfSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request:
             current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
+            base_url = f'https://{current_site.domain}'
             return f"{base_url}{settings.MEDIA_URL}{obj.organize_pdf.name}"
         return None

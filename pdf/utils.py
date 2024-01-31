@@ -37,7 +37,7 @@ def protect_pdf(request, input_file, password, user):
     protected_file.save()
 
     current_site = get_current_site(request)
-    base_url = f'http://{current_site.domain}'
+    base_url = f'https://{current_site.domain}'
     full_url = f'{base_url}{protected_file.protected_file.url}'
 
     return protected_file, full_url
@@ -60,7 +60,7 @@ def merge_pdf(request, user, pdf_list):
     merged_pdf.save()
 
     current_site = get_current_site(request)
-    base_url = f'http://{current_site.domain}'
+    base_url = f'https://{current_site.domain}'
     full_url = f'{base_url}{merged_pdf.merged_file.url}'
 
     return merged_pdf, full_url
@@ -114,7 +114,7 @@ def compress_pdf(request, user, input_pdf, compression_quality):
         os.remove(temp_file_path)
 
         current_site = get_current_site(request)
-        base_url = f'http://{current_site.domain}'
+        base_url = f'https://{current_site.domain}'
         full_url = f'{base_url}{compressed_pdf.compressed_file.url}'
 
         
@@ -142,6 +142,7 @@ def get_compression_quality(choice):
 
 def split_pdf(request, input_pdf, start_page, end_page, user):
     pdf_reader = PdfReader(input_pdf)
+    print(f'Total number of pages: {len(pdf_reader.pages)}')
     ranges = [(start_page, end_page)]
 
     for i, (start, end) in enumerate(ranges):
@@ -159,7 +160,7 @@ def split_pdf(request, input_pdf, start_page, end_page, user):
         split_pdf_instance.save()
 
     current_site = get_current_site(request)
-    base_url = f'http://{current_site.domain}'
+    base_url = f'https://{current_site.domain}'
     full_url = f'{base_url}{split_pdf_instance.split_pdf.url}'  # Adjust as needed
 
     return split_pdf_instance, full_url

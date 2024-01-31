@@ -13,9 +13,8 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
         'current_user': reset_password_token.user,
         'username': reset_password_token.user.username,
         'email': reset_password_token.user.email,
-        'reset_password_url': "{}?token={}".format(
-            instance.request.build_absolute_uri(reverse('password_reset:reset-password-confirm')),
-            reset_password_token.key)
+       
+        'reset_password_url': " http://localhost:5173/accounts/password_reset/confirm/?token={}".format(reset_password_token.key)
     }
 
     # render email text
@@ -24,7 +23,7 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
 
     msg = EmailMultiAlternatives(
         # title:
-        "Password Reset for {title}".format(title="Your Website Title"),
+        "Password Reset for {title}".format(title="LawTabby"),
         # message:
         email_plaintext_message,
         # from:
