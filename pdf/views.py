@@ -1,5 +1,6 @@
 import os
 import shutil
+from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -7,7 +8,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.http import FileResponse
-from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf
+from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF,CompressedPDF, SplitPDF
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.contrib.sites.shortcuts import get_current_site  
@@ -56,6 +57,13 @@ class DownloadProtectedPDFView(APIView):
         return response
 
 
+
+class ProtectedPDFDeleteView(generics.DestroyAPIView):
+    queryset = ProtectedPDF.objects.all()
+    serializer_class = ProtectedPDFSerializer
+    permission_classes = [IsAuthenticated] 
+
+
 class MergePDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -86,6 +94,10 @@ class MergePDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class MergePDFDeleteView(generics.DestroyAPIView):
+    queryset = MergedPDF.objects.all()
+    serializer_class = MergedPDFSerializer
+    permission_classes = [IsAuthenticated] 
 
 class CompressPDFView(APIView):
     permission_classes = [IsAuthenticated]
@@ -122,6 +134,13 @@ class CompressPDFView(APIView):
                 return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class CompressPDFDeleteView(generics.DestroyAPIView):
+    queryset = CompressedPDF.objects.all()
+    serializer_class = CompressedPDFSerializer
+    permission_classes = [IsAuthenticated] 
+
+
+
 class SplitPDFView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -154,6 +173,11 @@ class SplitPDFView(APIView):
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class SplitPDFDeleteView(generics.DestroyAPIView):
+    queryset = SplitPDF.objects.all()
+    serializer_class = SplitPDFSerializer
+    permission_classes = [IsAuthenticated] 
 
 
 class PDFToImageConversionView(APIView):
