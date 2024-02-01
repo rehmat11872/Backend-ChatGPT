@@ -66,3 +66,9 @@ class OrganizedPdf(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     organize_pdf = models.FileField(upload_to='organized_pdfs/')
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class UnlockPdf(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    unlock_pdf = models.FileField(upload_to='unlock_pdfs/')
+    created_at = models.DateTimeField(auto_now_add=True)

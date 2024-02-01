@@ -11,7 +11,7 @@ from django.core.files.base import ContentFile
 from zipfile import ZipFile
 from django.contrib.sites.shortcuts import get_current_site  
 from rest_framework.reverse import reverse
-from .models import ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF, OrganizedPdf
+from .models import ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF, OrganizedPdf, UnlockPdf
 
 from django.conf import settings
 
@@ -276,3 +276,36 @@ def organize_pdf(input_pdf, user_order, user):
 
         print("PDF successfully organized.")
         return organized_pdf_instance
+
+
+
+
+def unlock_pdf(input_pdf, password, user):
+    pdf_reader = PyPDF2.PdfReader(input_pdf)
+
+
+    # Try to decrypt the PDF with the provided password
+    success = pdf_reader.decrypt(password)
+
+    if success:
+        # Create a PDF writer object
+        pdf_writer = PyPDF2.PdfWriter()
+
+        # Add each page from the decrypted PDF to the writer
+        for page_num in range(len(pdf_reader.pages)):
+            pdf_writer.add_page(pdf_reader.pages[page_num])
+
+        # Create a BytesIO buffer and write the PDF content
+        buffer = BytesIO()
+        pdf_writer.write(buffer)
+        buffer.seek(0)
+
+        # Save the unlocked PDF to the UnlockPdf model
+        unlock_pdf_instance = UnlockPdf(user=user)
+        unlock_pdf_instance.unlock_pdf.save(f"unlocked_output.pdf", ContentFile(buffer.getvalue()))
+        unlock_pdf_instance.save()
+
+        print("PDF unlocked successfully.")
+        return unlock_pdf_instance
+    else:
+        raise ValueError("Failed to unlock the PDF. Incorrect password.")

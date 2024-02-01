@@ -15,7 +15,7 @@ urlpatterns = [
 
     #split pdf
     path('split_pdf/', SplitPDFView.as_view(), name='split_pdf'),
-     path('split_pdf/delete/<int:pk>/', SplitPDFDeleteView.as_view(), name='split_pdf_delete'),
+    path('split_pdf/delete/<int:pk>/', SplitPDFDeleteView.as_view(), name='split_pdf_delete'),
 
     #pdf to image/jpg
     path('pdf_to_image/', PDFToImageConversionView.as_view(), name='pdf_to_image'),
@@ -23,4 +23,8 @@ urlpatterns = [
     path('word_to_pdf/', WordToPdfConversionView.as_view(), name='word_to_pdf'),
     #organize pdf
     path('organize_pdf/', OrganizePDFView.as_view(), name='organize_pdf'),
+    #unlock_pdf
+    path('unlock_pdf/', UnlockPDFView.as_view(), name='unlock_pdf'),
+    path('unlock_pdf/delete/<int:pk>/', UnlockPDFDeleteView.as_view(), name='unlock_pdf_delete'),
+
 ]

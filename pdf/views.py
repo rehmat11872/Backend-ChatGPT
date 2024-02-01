@@ -8,12 +8,12 @@ from PyPDF2 import PdfReader, PdfWriter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.http import FileResponse
-from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF,CompressedPDF, SplitPDF
+from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF,CompressedPDF, SplitPDF, UnlockPdf
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.contrib.sites.shortcuts import get_current_site  
-from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, word_to_pdf, organize_pdf
-from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer
+from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, word_to_pdf, organize_pdf, unlock_pdf
+from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer
 
 
 class ProtectPDFView(APIView):
@@ -290,3 +290,32 @@ class OrganizePDFView(APIView):
             return Response({'message': 'PDF pages organized successfully.', 'organized_data': serializer.data})
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class UnlockPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, format=None):
+        input_pdf = request.FILES.get('input_pdf', None)
+        password = request.data.get('password', '')
+
+        if not input_pdf or not password:
+            return Response({'error': 'Incomplete data. Please provide input PDF,  and password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = request.user
+            unlock_file = unlock_pdf(input_pdf, password, user)
+            serializer = UnlockPdfSerializer(unlock_file, context={'request': request})
+            return Response({'message': 'PDF unlocked successfully.', 'unlocked_pdf': serializer.data})
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+class UnlockPDFDeleteView(generics.DestroyAPIView):
+    queryset = UnlockPdf.objects.all()
+    serializer_class = UnlockPdfSerializer
+    permission_classes = [IsAuthenticated] 

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ProtectedPDF, MergedPDF, CompressedPDF, SplitPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf
+from .models import ProtectedPDF, MergedPDF, CompressedPDF, SplitPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, UnlockPdf
 # Register your models here.
 
 class ProtectedPDFAdmin(admin.ModelAdmin):
@@ -42,3 +42,9 @@ admin.site.register(WordToPdf)
 class OrganizedPdfAdmin(admin.ModelAdmin):
     list_display = ['user', 'id']  
 admin.site.register(OrganizedPdf, OrganizedPdfAdmin)
+
+
+
+class UnlockPdfAdmin(admin.ModelAdmin):
+    list_display = ['user', 'id']  
+admin.site.register(UnlockPdf, UnlockPdfAdmin)
