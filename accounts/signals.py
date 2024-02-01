@@ -14,7 +14,7 @@ def password_reset_token_created(sender, instance, reset_password_token, *args, 
         'username': reset_password_token.user.username,
         'email': reset_password_token.user.email,
        
-        'reset_password_url': " http://localhost:5173/accounts/password_reset/confirm/?token={}".format(reset_password_token.key)
+        'reset_password_url': "https://ai-lawyer.neuracase.com/accounts/password_reset/confirm/?token={}".format(reset_password_token.key)
     }
 
     # render email text
