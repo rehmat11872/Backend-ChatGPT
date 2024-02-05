@@ -235,6 +235,17 @@ class PDFToImageConversionView(APIView):
 
 
 
+class PDFToImageDeleteView(generics.DestroyAPIView):
+    queryset = PDFImageConversion.objects.all()
+    serializer_class = PDFImageConversionSerializer
+    permission_classes = [IsAuthenticated] 
+
+
+
+
+
+
+
 class WordToPdfConversionView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -262,6 +273,17 @@ class WordToPdfConversionView(APIView):
             return Response({'message': 'Word to PDF conversion completed.', 'conversion_data': serializer.data})
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class WordToPdfConversionDeleteView(generics.DestroyAPIView):
+    queryset = WordToPdfConversion.objects.all()
+    serializer_class = WordToPdfConversionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_destroy(self, instance):
+        # Perform any additional logic here if needed
+        instance.word_to_pdfs.all().delete()  # Delete related WordToPdf instances
+        instance.delete()
 
 
 class OrganizePDFView(APIView):

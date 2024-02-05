@@ -19,8 +19,12 @@ urlpatterns = [
 
     #pdf to image/jpg
     path('pdf_to_image/', PDFToImageConversionView.as_view(), name='pdf_to_image'),
+    path('pdf_to_image/delete/<int:pk>/', PDFToImageDeleteView.as_view(), name='pdf_to_image_delete'),
     #word to pdf
     path('word_to_pdf/', WordToPdfConversionView.as_view(), name='word_to_pdf'),
+    path('word_to_pdf/delete/<int:pk>/', WordToPdfConversionDeleteView.as_view(), name='word_to_pdf_delete'),
+
+
     #organize pdf
     path('organize_pdf/', OrganizePDFView.as_view(), name='organize_pdf'),
     #unlock_pdf
