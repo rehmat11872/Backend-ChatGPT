@@ -207,42 +207,85 @@ def create_zip_file(images, user):
 
 #Word to pdf
 
-def perform_conversion(input_file, output_file):
-    if input_file.name.endswith(".docx"):
-        # Save the InMemoryUploadedFile to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
-            temp_docx.write(input_file.read())
-            temp_docx_path = temp_docx.name
+# def perform_conversion(input_file, output_file):
+#     if input_file.name.endswith(".docx"):
+#         # Save the InMemoryUploadedFile to a temporary file
+#         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as temp_docx:
+#             temp_docx.write(input_file.read())
+#             temp_docx_path = temp_docx.name
 
-        try:
-            convert(temp_docx_path, output_file)
-            return output_file
-        except Exception as e:
-            print(f"Error during conversion: {e}")
-        finally:
-            # Remove the temporary file
-            os.remove(temp_docx_path)
-    else:
-        raise ValueError("Unsupported file format")
+#         try:
+#             convert(temp_docx_path, output_file)
+#             return output_file
+#         except Exception as e:
+#             print(f"Error during conversion: {e}")
+#         finally:
+#             # Remove the temporary file
+#             os.remove(temp_docx_path)
+#     else:
+#         raise ValueError("Unsupported file format")
 
 
+
+# def word_to_pdf(input_files):
+#     converted_files = []
+
+#     with concurrent.futures.ThreadPoolExecutor() as executor:
+#         futures = []
+
+#         for input_file in input_files:
+#             output_file = f"{input_file.name.split('.')[0]}_output.pdf"
+#             futures.append(executor.submit(perform_conversion, input_file, output_file))
+
+#         for future in concurrent.futures.as_completed(futures):
+#             try:
+#                 result = future.result()
+#                 if result:
+#                     converted_files.append(result)
+#                     os.remove(result)
+#             except Exception as e:
+#                 print(f"Error: {e}")
+
+#     return converted_files
+
+import subprocess
+import tempfile
+import os
+
+def convert_to_pdf(input_file_path, output_file_path):
+    """
+    Converts a Word document (.docx) to PDF using unoconv and LibreOffice.
+    """
+    try:
+        # Use unoconv to convert the input Word document to PDF
+        subprocess.run(['unoconv', '-f', 'pdf', '-o', output_file_path, input_file_path], check=True)
+        return output_file_path
+    except subprocess.CalledProcessError as e:
+        print(f"Error during conversion: {e}")
+        return None
 
 def word_to_pdf(input_files):
+    """
+    Converts a list of Word files to PDF asynchronously.
+    """
     converted_files = []
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = []
-
+    with tempfile.TemporaryDirectory() as temp_dir:
         for input_file in input_files:
-            output_file = f"{input_file.name.split('.')[0]}_output.pdf"
-            futures.append(executor.submit(perform_conversion, input_file, output_file))
-
-        for future in concurrent.futures.as_completed(futures):
             try:
-                result = future.result()
-                if result:
-                    converted_files.append(result)
-                    os.remove(result)
+                if input_file.name.endswith(".docx"):
+                    input_file_path = os.path.join(temp_dir, input_file.name)
+                    output_file_path = os.path.join(temp_dir, f"{os.path.splitext(input_file.name)[0]}.pdf")
+
+                    # Save the input Word file to temporary directory
+                    with open(input_file_path, 'wb') as temp_file:
+                        temp_file.write(input_file.read())
+
+                    # Convert Word to PDF
+                    converted_file_path = convert_to_pdf(input_file_path, output_file_path)
+
+                    if converted_file_path:
+                        converted_files.append(converted_file_path)
             except Exception as e:
                 print(f"Error: {e}")
 
