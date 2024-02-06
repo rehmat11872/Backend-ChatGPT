@@ -215,7 +215,7 @@ class PDFToImageConversionView(APIView):
 
             # Construct the full URL
             current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
+            base_url = f'https://{current_site.domain}'
             zip_file_full_url = f'{base_url}{pdf_image_conversion.zip_file.url}'
 
             serializer = PDFImageConversionSerializer(pdf_image_conversion)
