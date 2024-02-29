@@ -49,8 +49,8 @@ class SplitPDF(models.Model):
 
 class PDFImageConversion(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    zip_file = models.FileField(upload_to='pdf_images/zips/', null=True, blank=True)   
-    created_at = models.DateTimeField(auto_now_add=True) 
+    zip_file = models.FileField(upload_to='pdf_images/zips/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class WordToPdfConversion(models.Model):
@@ -71,4 +71,9 @@ class OrganizedPdf(models.Model):
 class UnlockPdf(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     unlock_pdf = models.FileField(upload_to='unlock_pdfs/')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class StampPdf(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    pdf = models.FileField(upload_to='stamp_pdfs/')
     created_at = models.DateTimeField(auto_now_add=True)

@@ -11,9 +11,9 @@ from django.http import FileResponse
 from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF,CompressedPDF, SplitPDF, UnlockPdf
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
-from django.contrib.sites.shortcuts import get_current_site  
-from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, word_to_pdf, organize_pdf, unlock_pdf
-from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer
+from django.contrib.sites.shortcuts import get_current_site
+from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, stamp_pdf_with_text, word_to_pdf, organize_pdf, unlock_pdf
+from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer
 
 
 class ProtectPDFView(APIView):
@@ -61,7 +61,7 @@ class DownloadProtectedPDFView(APIView):
 class ProtectedPDFDeleteView(generics.DestroyAPIView):
     queryset = ProtectedPDF.objects.all()
     serializer_class = ProtectedPDFSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
 
 
 class MergePDFView(APIView):
@@ -97,7 +97,7 @@ class MergePDFView(APIView):
 class MergePDFDeleteView(generics.DestroyAPIView):
     queryset = MergedPDF.objects.all()
     serializer_class = MergedPDFSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
 
 class CompressPDFView(APIView):
     permission_classes = [IsAuthenticated]
@@ -113,11 +113,11 @@ class CompressPDFView(APIView):
                 return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
-                user = request.user 
+                user = request.user
                 compressed_pdf, full_url = compress_pdf(request, user, input_pdf, compression_quality)
                 serializer = CompressedPDFSerializer(compressed_pdf)
 
-                
+
 
                 response_data = {
                 'message': 'PDF compression completed',
@@ -137,7 +137,7 @@ class CompressPDFView(APIView):
 class CompressPDFDeleteView(generics.DestroyAPIView):
     queryset = CompressedPDF.objects.all()
     serializer_class = CompressedPDFSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
 
 
 
@@ -155,7 +155,7 @@ class SplitPDFView(APIView):
             return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user = request.user 
+            user = request.user
             split_pdf_instance, full_url= split_pdf(request, input_pdf, start_page, end_page, user)
             serializer = SplitPDFSerializer(split_pdf_instance)
 
@@ -177,7 +177,7 @@ class SplitPDFView(APIView):
 class SplitPDFDeleteView(generics.DestroyAPIView):
     queryset = SplitPDF.objects.all()
     serializer_class = SplitPDFSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
 
 
 class PDFToImageConversionView(APIView):
@@ -191,7 +191,7 @@ class PDFToImageConversionView(APIView):
             return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user = request.user 
+            user = request.user
             # output_folder = 'pdf_images'
             image_paths = convert_pdf_to_image(input_pdf)
 
@@ -238,7 +238,7 @@ class PDFToImageConversionView(APIView):
 class PDFToImageDeleteView(generics.DestroyAPIView):
     queryset = PDFImageConversion.objects.all()
     serializer_class = PDFImageConversionSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
 
 
 
@@ -305,7 +305,7 @@ class OrganizePDFView(APIView):
 
         try:
             user = request.user
-            user_order = list(map(int, user_order))  
+            user_order = list(map(int, user_order))
             converted_file = organize_pdf(input_pdf, user_order, user)
 
             serializer = OrganizedPdfSerializer(converted_file, context={'request': request})
@@ -340,4 +340,28 @@ class UnlockPDFView(APIView):
 class UnlockPDFDeleteView(generics.DestroyAPIView):
     queryset = UnlockPdf.objects.all()
     serializer_class = UnlockPdfSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAuthenticated]
+
+
+
+class StampPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, format=None):
+        input_pdf = request.FILES.get('input_pdf', None)
+        text = request.data.get('text', '')
+
+        if not input_pdf:
+            return Response({'error': 'No input PDF file.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not text:
+            return Response({'error': 'No stamp text provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_file = stamp_pdf_with_text(input_pdf, text, request.user)
+            print(new_file,'new_file')
+
+            serializer = StampPdfSerializer(new_file, context={'request': request})
+            return Response({'message': 'PDF pages stamped successfully.', 'data': serializer.data})
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
