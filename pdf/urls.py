@@ -34,4 +34,7 @@ urlpatterns = [
     #stamp pdf with text
     path('stamp_pdf_with_text/', StampPDFView.as_view(), name='stamp_pdf_with_text'),
 
+    #stamp pdf with text
+    path('ocr_to_pdf/', OcrPDFView.as_view(), name='ocr_to_pdf'),
+
 ]

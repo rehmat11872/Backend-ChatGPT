@@ -7,6 +7,7 @@ from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib import colors
+import pytesseract
 
 import concurrent.futures
 from docx2pdf import convert
@@ -15,7 +16,7 @@ from django.core.files.base import ContentFile
 from zipfile import ZipFile
 from django.contrib.sites.shortcuts import get_current_site
 from rest_framework.reverse import reverse
-from .models import ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF, OrganizedPdf, StampPdf, UnlockPdf
+from .models import OcrPdf, ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF, OrganizedPdf, StampPdf, UnlockPdf
 
 import math
 
@@ -43,7 +44,7 @@ def protect_pdf(request, input_file, password, user):
     protected_file.save()
 
     current_site = get_current_site(request)
-    base_url = f'https://{current_site.domain}'
+    base_url = f'http://{current_site.domain}'
     full_url = f'{base_url}{protected_file.protected_file.url}'
 
     return protected_file, full_url
@@ -66,7 +67,7 @@ def merge_pdf(request, user, pdf_list):
     merged_pdf.save()
 
     current_site = get_current_site(request)
-    base_url = f'https://{current_site.domain}'
+    base_url = f'http://{current_site.domain}'
     full_url = f'{base_url}{merged_pdf.merged_file.url}'
 
     return merged_pdf, full_url
@@ -124,7 +125,7 @@ def compress_pdf(request, user, input_pdf, compression_quality):
             print(f"Error deleting temporary file: {e}")
 
         current_site = get_current_site(request)
-        base_url = f'https://{current_site.domain}'
+        base_url = f'http://{current_site.domain}'
         full_url = f'{base_url}{compressed_pdf.compressed_file.url}'
 
 
@@ -138,10 +139,12 @@ def compress_pdf(request, user, input_pdf, compression_quality):
 def stamp_pdf_with_text(input_pdf, stamp_text, user):
     try:
         temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
-        output_file_path = os.path.join(TEMP_PATH, 'stamped_output.pdf')
 
-        input_pdf_path = os.path.join(TEMP_PATH, input_pdf.name)
-        pdf_reader = PdfReader(input_pdf_path)
+        with open(temp_file_path, 'wb') as temp_file:
+            for chunk in input_pdf.chunks():
+                temp_file.write(chunk)
+
+        pdf_reader = PdfReader(temp_file_path)
         pdf_writer = PdfWriter()
 
         watermark_buffer = BytesIO()
@@ -180,116 +183,6 @@ def stamp_pdf_with_text(input_pdf, stamp_text, user):
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         return None
-# def stamp_pdf_with_text(input_pdf, stamp_text, user):
-#     try:
-#         temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
-
-#         with open(temp_file_path, 'wb') as temp_file:
-#             for chunk in input_pdf.chunks():
-#                 temp_file.write(chunk)
-
-#         pdf_document = fitz.open(temp_file_path)
-
-#         for page_number in range(len(pdf_document)):
-#             page = pdf_document[page_number]
-
-#             rect = page.rect
-
-#             font_size = 36
-#             font_color = (0, 0, 0)  # Black color
-
-#             # Calculate center coordinates for positioning the text
-#             # text_width = page.get_text_width(stamp_text, fontsize=font_size)
-#             # text_height = page.get_text_height(stamp_text, fontsize=font_size)
-#             center_x = (rect.width - 50) / 2
-#             center_y = (rect.height - 30) / 2
-
-#             # Add the text stamp to the page
-#             page.insert_text((center_x, center_y), stamp_text, fontsize=font_size, color=font_color)
-
-#         # Create a BytesIO buffer and write the stamped PDF content
-#         buffer = BytesIO()
-#         pdf_document.save(buffer)
-#         buffer.seek(0)
-
-#         # Save the stamped PDF to the StampedPdf model
-#         stamped_pdf_instance = StampPdf(user=user)
-#         stamped_pdf_instance.pdf.save('stamped_output.pdf', ContentFile(buffer.getvalue()))
-#         stamped_pdf_instance.save()
-
-#         return stamped_pdf_instance
-
-#     except Exception as e:
-#         print(f"An error occurred: {str(e)}")
-#         return None
-
-
-# def stamp_pdf_with_text(input_pdf, stamp_text, user):
-#     try:
-#         # Open the input PDF file
-#         print(input_pdf, 'input_pdf')
-#         pdf_document = fitz.open(input_pdf)
-#         print(pdf_document, 'pdf_document')
-
-#         # Iterate through each page of the PDF
-#         for page_number in range(len(pdf_document)):
-#             page = pdf_document[page_number]
-
-#             # Define the text properties
-#             font_size = 12
-#             font_color = (0, 0, 0)  # Black color
-
-#             # Add the text stamp to the page
-#             page.insert_text((100, 100), stamp_text, fontsize=font_size, color=font_color)
-
-#         # Create a BytesIO buffer and write the stamped PDF content
-#         buffer = BytesIO()
-#         pdf_document.save(buffer)
-#         buffer.seek(0)
-
-#         # Save the stamped PDF to the StampedPdf model
-#         stamped_pdf_instance = StampPdf(user=user)
-#         stamped_pdf_instance.pdf.save('stamped_output.pdf', ContentFile(buffer.getvalue()))
-#         stamped_pdf_instance.save()
-
-#         print("PDF successfully stamped.")
-#         return stamped_pdf_instance
-
-#     except Exception as e:
-#         print(f"An error occurred: {str(e)}")
-#         return None
-
-
-# def stamp_pdf_with_text(pdf_path, text, output_path):
-#     try:
-#         # Open the PDF document
-#         pdf_document = fitz.open(pdf_path)
-
-#         # Iterate through each page of the PDF
-#         for page_number in range(len(pdf_document)):
-#             page = pdf_document[page_number]
-
-#             # Get the dimensions of the page
-#             rect = page.rect
-
-#             # Define the text properties
-#             font_size = 12
-#             font_color = (0, 0, 0)  # Black color
-#             # font = page.get_font("helv")  # You can replace "helv" with any font name available in your system
-
-#             # Add the text stamp to the page
-#             page.insert_text((rect.width - 100, rect.height - 50), text, fontsize=font_size, color=font_color)
-
-#         # Save the stamped PDF
-#         pdf_document.save(output_path)
-#         pdf_document.close()
-
-#         return output_path
-
-#     except Exception as e:
-#         print(f"An error occurred while stamping the PDF: {str(e)}")
-#         return None
-
 
 
 def get_compression_quality(choice):
@@ -326,7 +219,7 @@ def split_pdf(request, input_pdf, start_page, end_page, user):
         split_pdf_instance.save()
 
     current_site = get_current_site(request)
-    base_url = f'https://{current_site.domain}'
+    base_url = f'http://{current_site.domain}'
     full_url = f'{base_url}{split_pdf_instance.split_pdf.url}'  # Adjust as needed
 
     return split_pdf_instance, full_url
@@ -518,3 +411,57 @@ def unlock_pdf(input_pdf, password, user):
         return unlock_pdf_instance
     else:
         raise ValueError("Failed to unlock the PDF. Incorrect password.")
+
+
+def pdf_to_ocr(input_pdf, user):
+    temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
+
+    with open(temp_file_path, 'wb') as temp_file:
+        for chunk in input_pdf.chunks():
+            temp_file.write(chunk)
+
+    if not os.path.exists(temp_file_path):
+        raise FileNotFoundError(f"Input PDF file '{temp_file_path}' not found.")
+
+    # Configure Tesseract OCR path
+    pytesseract.pytesseract.tesseract_cmd = "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+
+    # Check Tesseract OCR version
+    if not pytesseract.pytesseract.get_tesseract_version():
+        raise RuntimeError("Tesseract OCR is not properly configured. Please set the correct path.")
+
+    pdf_document = fitz.open(temp_file_path)
+    pdf_writer = fitz.open()
+
+    for page_num in range(len(pdf_document)):
+        page = pdf_document.load_page(page_num)
+        image_bytes = page.get_pixmap().tobytes()
+        image = Image.open(BytesIO(image_bytes))
+        ocr_text = pytesseract.image_to_string(image)
+
+        # Add OCR text to a new page in the output PDF
+        new_page = pdf_writer.new_page(width=page.rect.width, height=page.rect.height)
+        new_page.insert_text((0, 0), ocr_text)
+
+    # Save the OCR result as a PDF
+    buffer = BytesIO()
+    pdf_writer.save(buffer)
+    buffer.seek(0)
+
+    # Save the PDF to the database using the OcrPdf model (adjust this part according to your model)
+    pdf = OcrPdf(user=user)
+    pdf.pdf.save('ocr_output.pdf', ContentFile(buffer.getvalue()))
+    pdf.save()
+
+    return pdf
+
+def convert_pdf_page_to_image(pdf_document, page_num):
+    page = pdf_document.load_page(page_num)
+    pixmap = page.get_pixmap()
+    image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+    return image
+
+def perform_ocr_on_image(image):
+    ocr_dict = pytesseract.image_to_data(image, lang='eng', output_type=pytesseract.Output.DICT)
+    ocr_text = " ".join([word for word in ocr_dict['text'] if word.strip()])
+    return ocr_text

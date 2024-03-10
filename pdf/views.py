@@ -12,8 +12,8 @@ from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordT
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.contrib.sites.shortcuts import get_current_site
-from .utils import protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, stamp_pdf_with_text, word_to_pdf, organize_pdf, unlock_pdf
-from .serializers import ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer
+from .utils import pdf_to_ocr, protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, stamp_pdf_with_text, word_to_pdf, organize_pdf, unlock_pdf
+from .serializers import OcrPdfSerializer, ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer
 
 
 class ProtectPDFView(APIView):
@@ -215,7 +215,7 @@ class PDFToImageConversionView(APIView):
 
             # Construct the full URL
             current_site = get_current_site(request)
-            base_url = f'https://{current_site.domain}'
+            base_url = f'http://{current_site.domain}'
             zip_file_full_url = f'{base_url}{pdf_image_conversion.zip_file.url}'
 
             serializer = PDFImageConversionSerializer(pdf_image_conversion)
@@ -363,5 +363,23 @@ class StampPDFView(APIView):
 
             serializer = StampPdfSerializer(new_file, context={'request': request})
             return Response({'message': 'PDF pages stamped successfully.', 'data': serializer.data})
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class OcrPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, format=None):
+        input_pdf = request.FILES.get('input_pdf', None)
+
+        if not input_pdf:
+            return Response({'error': 'No input PDF file.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_file = pdf_to_ocr(input_pdf, request.user)
+            print(new_file,'new_file')
+
+            serializer = OcrPdfSerializer(new_file, context={'request': request})
+            return Response({'message': 'OCR to PDF conversion successful.', 'data': serializer.data})
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

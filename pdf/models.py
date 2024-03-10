@@ -77,3 +77,8 @@ class StampPdf(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     pdf = models.FileField(upload_to='stamp_pdfs/')
     created_at = models.DateTimeField(auto_now_add=True)
+
+class OcrPdf(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    pdf = models.FileField(upload_to='ocr_pdfs/')
+    created_at = models.DateTimeField(auto_now_add=True)
