@@ -8,7 +8,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib import colors
 import pytesseract
-
+import pdfkit
+from docx import Document
+from fpdf import FPDF
 import concurrent.futures
 from docx2pdf import convert
 from PyPDF2 import PdfReader, PdfWriter
@@ -311,46 +313,102 @@ import subprocess
 import tempfile
 import os
 
-def convert_to_pdf(input_file_path, output_file_path):
+# def convert_to_pdf(input_file_path, output_file_path):
+#     """
+#     Converts a Word document (.docx) to PDF using unoconv and LibreOffice.
+#     """
+#     try:
+
+#         print(input_file_path, 'input_file_path')
+#         print(output_file_path, 'output_file_path')
+#         # Use unoconv to convert the input Word document to PDF
+#         subprocess.run(['unoconv', '-f', 'pdf', '-o', output_file_path, input_file_path], check=True)
+#         return output_file_path
+#     except subprocess.CalledProcessError as e:
+#         print(f"Error during conversion: {e}")
+#         return None
+# def convert_to_pdf(input_file_path, output_file_path):
+#     """
+#     Converts a other document to PDF
+#     """
+#     try:
+#         converter = PyPDF2.Converter()
+#         converter.convert(input_file_path, output_file_path)
+#         converter.close()
+#         return output_file_path
+#     except subprocess.CalledProcessError as e:
+#         print(f"Error during conversion: {e}")
+#         return None
+
+# def word_to_pdf(input_files):
+#     """
+#     Converts a list of Word files to PDF asynchronously.
+#     """
+#     converted_files = []
+
+#     with tempfile.TemporaryDirectory() as temp_dir:
+#         for input_file in input_files:
+#             try:
+#                 if input_file.name.endswith(".docx"):
+#                     input_file_path = os.path.join(temp_dir, input_file.name)
+#                     output_file_path = os.path.join(temp_dir, f"{os.path.splitext(input_file.name)[0]}.pdf")
+
+#                     # Save the input Word file to temporary directory
+#                     with open(input_file_path, 'wb') as temp_file:
+#                         temp_file.write(input_file.read())
+
+#                     # Convert Word to PDF
+#                     converted_file_path = convert_to_pdf(input_file_path, output_file_path)
+
+#                     print(input_file_path, 'input_file_path')
+#                     print(output_file_path, 'output_file_path')
+#                     print(converted_file_path, 'converted_file_path')
+
+#                     if converted_file_path:
+#                         converted_files.append(converted_file_path)
+#             except Exception as e:
+#                 print(f"Error: {e}")
+
+#     return converted_files
+def save_uploaded_file(input_file):
     """
-    Converts a Word document (.docx) to PDF using unoconv and LibreOffice.
+    Saves the uploaded file to a temporary location.
+    """
+    temp_file_path = os.path.join(TEMP_PATH, input_file.name)
+    with open(temp_file_path, 'wb') as temp_file:
+        for chunk in input_file.chunks():
+            temp_file.write(chunk)
+    return temp_file_path
+
+def convert_other_to_pdf(input_file):
+    """
+    Converts uploaded file to PDF format based on its extension.
     """
     try:
-        # Use unoconv to convert the input Word document to PDF
-        subprocess.run(['unoconv', '-f', 'pdf', '-o', output_file_path, input_file_path], check=True)
-        return output_file_path
-    except subprocess.CalledProcessError as e:
-        print(f"Error during conversion: {e}")
-        return None
+        temp_file_path = save_uploaded_file(input_file)
+        output_file_path = temp_file_path.replace(os.path.splitext(input_file.name)[1], '.pdf')
 
-def word_to_pdf(input_files):
-    """
-    Converts a list of Word files to PDF asynchronously.
-    """
-    converted_files = []
+        # Determine conversion command based on file extension
+        file_extension = os.path.splitext(input_file.name)[1].lower()
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for input_file in input_files:
-            try:
-                if input_file.name.endswith(".docx"):
-                    input_file_path = os.path.join(temp_dir, input_file.name)
-                    output_file_path = os.path.join(temp_dir, f"{os.path.splitext(input_file.name)[0]}.pdf")
+        pdfkit.from_file(input_file, output_file_path)
+        # conversion_command = ['pandoc', temp_file_path, "-o", output_file_path]
+        # if file_extension in ('.txt', '.xlsx'):
+        #     conversion_command.insert(2, "--from=plain")
+        # elif file_extension == '.docx':
+        #     conversion_command.insert(2, "--from=docx")
 
-                    # Save the input Word file to temporary directory
-                    with open(input_file_path, 'wb') as temp_file:
-                        temp_file.write(input_file.read())
+        print(TEMP_PATH, 'TEMP_PATH')
+        print(temp_file_path, 'temp_file_path')
+        print(output_file_path, 'output_file_path')
 
-                    # Convert Word to PDF
-                    converted_file_path = convert_to_pdf(input_file_path, output_file_path)
+        # subprocess.run(['unoconv', '-f', 'pdf', '-o', output_file_path, temp_file_path], check=True)
+        # print(f"Conversion successful. PDF saved as {output_file_path}")
+        # subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', TEMP_PATH, temp_file_path], check=True)
+        # print(f"Conversion successful. PDF saved as {output_file_path}")
 
-                    if converted_file_path:
-                        converted_files.append(converted_file_path)
-            except Exception as e:
-                print(f"Error: {e}")
-
-    return converted_files
-
-
+    except Exception as e:
+        print(f"An error occurred during conversion: {e}")
 
 
 def organize_pdf(input_pdf, user_order, user):

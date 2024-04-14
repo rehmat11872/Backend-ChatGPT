@@ -7,7 +7,7 @@ class PromptSubmissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = PromptSubmission
         fields = ['id', 'user', 'prompt', 'response', 'image']
-        read_only_fields = ['user']  
+        read_only_fields = ['user']
 
 
     def validate_image(self, value):

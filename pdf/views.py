@@ -12,7 +12,7 @@ from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordT
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.contrib.sites.shortcuts import get_current_site
-from .utils import pdf_to_ocr, protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, stamp_pdf_with_text, word_to_pdf, organize_pdf, unlock_pdf
+from .utils import convert_other_to_pdf, pdf_to_ocr, protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, stamp_pdf_with_text,  organize_pdf, unlock_pdf
 from .serializers import OcrPdfSerializer, ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer
 
 
@@ -245,34 +245,45 @@ class PDFToImageDeleteView(generics.DestroyAPIView):
 
 
 
-
+# name should change to OtherToPdf
 class WordToPdfConversionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, format=None):
-        input_files = request.FILES.getlist('input_files')
+        input_file = request.FILES.get('input_file')
 
-        if not input_files:
+        if not input_file:
             return Response({'error': 'No input files provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user = request.user
-            conversion_instance = WordToPdfConversion(user=user)
-            conversion_instance.save()
+            # new_file = convert_other_to_pdf(input_file, request.user)
+            new_file = convert_other_to_pdf(input_file)
+            print(new_file,'new_file')
 
-            converted_files = word_to_pdf(input_files)
-
-            for converted_file in converted_files:
-                word_to_pdf_instance = WordToPdf(word_to_pdf=converted_file)
-                word_to_pdf_instance.save()
-                conversion_instance.word_to_pdfs.add(word_to_pdf_instance)
-
-            conversion_instance.save()
-
-            serializer = WordToPdfConversionSerializer(conversion_instance, context={'request': request})
-            return Response({'message': 'Word to PDF conversion completed.', 'conversion_data': serializer.data})
+            serializer = StampPdfSerializer(new_file, context={'request': request})
+            return Response({'message': 'PDF pages stamped successfully.', 'data': serializer.data})
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # try:
+            # user = request.user
+            # conversion_instance = WordToPdfConversion(user=user)
+            # conversion_instance.save()
+
+            # converted_files = convert_other_to_pdf(input_files)
+            # print(converted_files, 'converted_files')
+
+            # for converted_file in converted_files:
+            #     word_to_pdf_instance = WordToPdf(word_to_pdf=converted_file)
+            #     word_to_pdf_instance.save()
+            #     conversion_instance.word_to_pdfs.add(word_to_pdf_instance)
+
+            # conversion_instance.save()
+
+            # serializer = WordToPdfConversionSerializer(conversion_instance, context={'request': request})
+        #     return Response({'message': 'Word to PDF conversion completed.', 'conversion_data': serializer.data})
+        # except Exception as e:
+        #     return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class WordToPdfConversionDeleteView(generics.DestroyAPIView):
@@ -359,7 +370,6 @@ class StampPDFView(APIView):
 
         try:
             new_file = stamp_pdf_with_text(input_pdf, text, request.user)
-            print(new_file,'new_file')
 
             serializer = StampPdfSerializer(new_file, context={'request': request})
             return Response({'message': 'PDF pages stamped successfully.', 'data': serializer.data})
