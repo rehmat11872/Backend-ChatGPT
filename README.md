@@ -1,3 +1,73 @@
+# Backend-Lawtabby
+
+A Django backend project supporting authentication (Google, Apple, Microsoft), payments (Stripe, PayPal), PDF handling, and chat functionality.
+
+## Features
+
+- User authentication (email/password, Google, Apple, Microsoft)
+- REST API with Django REST Framework
+- Payment integration (Stripe, PayPal)
+- PDF processing
+- Chat module
+- Docker support
+
+## Setup Instructions
+
+### 1. Clone the Repository
+
+```sh
+git clone <repo-url>
+cd Backend-ChatGPT
+```
+
+### 2. Install Python 3.11
+
+```sh
+brew install python@3.11
+```
+
+### 3. Create and Activate Virtual Environment
+
+```sh
+python3.11 -m venv venv
+source venv/bin/activate
+```
+
+### 4. Install Requirements
+
+If you need to create a requirements file:
+
+```sh
+pip freeze > requirements.txt
+```
+
+To install requirements:
+
+```sh
+pip install -r requirements.txt
+```
+
+### 5. Generate Django Secret Key
+
+```sh
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+### 6. Run Migrations
+
+```sh
+python manage.py makemigrations
+python manage.py migrate
+```
+
+### 7. Start Development Server
+
+```sh
+python manage.py runserver
+```
+
+
+
 #create requirement file
 pip freeze > requirements.txt
 install requirement
