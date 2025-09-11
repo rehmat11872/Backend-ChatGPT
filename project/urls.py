@@ -22,6 +22,11 @@ from django.contrib import admin
 from django.conf.urls.static import static
 from django.conf import settings
 
+from django.shortcuts import render
+
+def health_check(request):
+    return render(request, 'health_check.html')
+
 schema_view = get_schema_view(
     openapi.Info(
         title="Snippets API",
@@ -37,6 +42,7 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    path('', health_check, name='health_check'),  
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path("accounts/", include("allauth.urls")),
