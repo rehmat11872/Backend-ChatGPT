@@ -58,8 +58,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.microsoft',
     'allauth.socialaccount.providers.apple',
 
-    
-    
+
+
 
     #apps
     'accounts',
@@ -114,10 +114,11 @@ JWT_AUTH = {
 
 CORS_ORIGIN_ALLOW_ALL = True
 # CORS_ALLOW_ALL_ORIGINS = True
-# CORS_ALLOW_CREDENTIALS = True 
+# CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_WHITELIST = (
     # 'http://localhost:3000',
     'http://127.0.0.1:5173',
+    'http://localhost:5173',
     # 'https://lawtabby.netlify.app',
     'https://ai-lawyer.neuracase.com',
 )
@@ -259,7 +260,7 @@ SOCIALACCOUNT_PROVIDERS = {
             "client_id": config('SOCIAL_APPLE_CLIENT_ID'),
             "secret": config('SOCIAL_APPLE_SECRET'),
             "key": config('SOCIAL_APPLE_KEY'),
-            "settings": { 
+            "settings": {
 "certificate_key": """-----BEGIN PRIVATE KEY-----
 MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgCRDgZhaN/Sspvlb7
 ryE8D+YChBC2uH97BvNGOKXpHxagCgYIKoZIzj0DAQehRANCAAQdUnewuWFxDIuw

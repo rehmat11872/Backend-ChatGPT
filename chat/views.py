@@ -1,76 +1,116 @@
 # views.py in your_app
 
+import json
+from django.http import JsonResponse, StreamingHttpResponse
 from rest_framework import viewsets
 from rest_framework.response import Response
 from .models import PromptSubmission
+from rest_framework import status
 from .serializers import PromptSubmissionSerializer
-import openai
 from decouple import config
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from openai import OpenAI
+import openai
 import base64
 import base64
 import requests
 
-
-class PromptSubmissionViewSet(viewsets.ModelViewSet):
+class PromptSubmissionViewSet(APIView):
     permission_classes = [IsAuthenticated]
-    queryset = PromptSubmission.objects.all()
+    # queryset = PromptSubmission.objects.all()
     serializer_class = PromptSubmissionSerializer
 
+    # def post(self, request):
+    #     messages = request.data.get('messages')
+
+    #     # Parse the request body and extract the prompt
+    #     # messages = serializer.validated_data.get('messages')
+    #     # if(messages[0].get('content') is None):
+    #     #     return Response({'error': 'invalid messages format'}, status=status.HTTP_400_BAD_REQUEST)
+    #     prompt = messages[0].get('content')
+
+    #     # Set up the OpenAI API client
+    #     openai.api_key = config('OPENAI_API_KEY')
+
+    #     # Define a generator function to stream the response
+    #     def generate_response():
+    #         for chunk in openai.ChatCompletion.create(
+    #             model="gpt-3.5-turbo",
+    #             messages=[{
+    #                 "role": "user",
+    #                 "content": prompt
+    #             }],
+    #             stream=True,
+    #         ):
+    #             content = chunk["choices"][0].get("delta", {}).get("content")
+    #             if content is not None:
+
+    #                 yield content
+    #     print(generate_response(), 'prompt')
+
+    #     # Return a streaming response to the client
+    #     return StreamingHttpResponse(generate_response(), content_type='text/event-stream')
 
 
-    def perform_create(self, serializer):
-        prompt = serializer.validated_data['prompt']
-        image = serializer.validated_data.get('image', None)
-        print(image, 'image')
-        def encode_image(image):
-          return base64.b64encode(image.read()).decode('utf-8')
+    def post(self, request):
 
-        client = OpenAI(
-            api_key=config('OPENAI_API_KEY')
-        )
+        try:
+            prompt = request.data.get('prompt')
 
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": prompt
-                    },
-                ],
-            }
-        ]
+            if(prompt is None):
+                return Response({'error': '"prompt" field is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if image:
-            base64_image = encode_image(image)
+            image = request.data.get('image', None)
 
-            messages[0]["content"].append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{base64_image}"
+            serializer = PromptSubmissionSerializer()
+
+            # print(image, 'image')
+
+            def encode_image(image):
+                return base64.b64encode(image.read()).decode('utf-8')
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        },
+                    ],
                 }
-            })
+            ]
 
-        payload = {
-            "model": "gpt-4-vision-preview",
-            "messages": messages,
-            "max_tokens": 300
-        }
+            if image:
+                base64_image = encode_image(image)
 
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {config('OPENAI_API_KEY')}"
-        }
+                messages[0]["content"].append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                })
 
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+            payload = {
+                "model": "gpt-4-vision-preview",
+                "messages": messages,
+                "max_tokens": 300
+            }
 
-        print(response.json(), 'okokok')
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {config('OPENAI_API_KEY')}"
+            }
 
-        content = response.json()['choices'][0]['message']['content']
+            response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
 
-        serializer.save(user=self.request.user, response=content)
+            # print(response.json(), 'okokok')
+
+            content = response.json()['choices'][0]['message']
+            # serializer.save(user=self.request.user, response=content)
+            return Response({ 'success': True, 'data': content })
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
     def perform_update(self, serializer):
@@ -82,7 +122,7 @@ class PromptSubmissionViewSet(viewsets.ModelViewSet):
         def encode_image(image):
           return base64.b64encode(image.read()).decode('utf-8')
 
-        client = OpenAI(
+        client = openai(
             api_key=config('OPENAI_API_KEY')
         )
 
@@ -152,7 +192,7 @@ class PromptSubmissionViewSet(viewsets.ModelViewSet):
     #             }
     #         ],
     #         model="gpt-3.5-turbo",
-            
+
     #     )
     #     print(response, 'response')
 

@@ -38,6 +38,15 @@ class SubscriptionPlanList(generics.ListAPIView):
         # Exclude subscription plans with duration as 'free_trial'
         return SubscriptionPlan.objects.exclude(duration='free_trial').order_by('id')
 
+    def post(self, request):
+        serializer = SubscriptionPlanSerializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response({'message': 'Subscription Successfully Created'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 
@@ -73,7 +82,7 @@ class CreateCheckoutSessionAPIView(APIView):
             # cancel_url='http://localhost:5173/subscription'
             cancel_url = YOUR_FRONTEND_DOMAIN + '/subscription?canceled=true',
         )
-        
+
         return Response({'id': checkout_session.id})
 
 
@@ -94,7 +103,7 @@ def stripe_webhook(request):
   except stripe.error.SignatureVerificationError as e:
     # Invalid signature
     return HttpResponse(status=400)
-  
+
 
   # Handle the checkout.session.completed event
   if event['type'] == 'checkout.session.completed' or event.type == 'payment_intent.succeeded':
@@ -110,7 +119,7 @@ def stripe_webhook(request):
     product = SubscriptionPlan.objects.get(id=product_id)
 
 
-    
+
     user = User.objects.get(email=customer_email)
     subscription = Subscription.objects.get(user=user)
     print(subscription, 'subscription11')
@@ -126,10 +135,10 @@ def stripe_webhook(request):
         # Handle other subscription durations accordingly
         pass
     subscription.is_active = True
-    subscription.is_upgraded = True 
+    subscription.is_upgraded = True
     subscription.payment_id = session.id
-    subscription.amount_paid = session["amount_total"] 
-    subscription.payment_status = session["payment_status"]  
+    subscription.amount_paid = session["amount_total"]
+    subscription.payment_status = session["payment_status"]
     subscription.save()
 
 
@@ -294,21 +303,21 @@ class CaptureOrderView(APIView):
 
 
 import json
- 
+
 from django.conf import settings
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import View
- 
- 
- 
+
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class ProcessWebhookView(View):
     def post(self, request):
         if "HTTP_PAYPAL_TRANSMISSION_ID" not in request.META:
             return HttpResponseBadRequest()
- 
+
         auth_algo = request.META['HTTP_PAYPAL_AUTH_ALGO']
         cert_url = request.META['HTTP_PAYPAL_CERT_URL']
         transmission_id = request.META['HTTP_PAYPAL_TRANSMISSION_ID']
@@ -316,7 +325,7 @@ class ProcessWebhookView(View):
         transmission_time = request.META['HTTP_PAYPAL_TRANSMISSION_TIME']
         webhook_id = settings.PAYPAL_WEBHOOK_ID
         event_body = request.body.decode(request.encoding or "utf-8")
- 
+
 
         webhook_event = json.loads(event_body)
         print(webhook_event, 'webhook_event')
@@ -326,7 +335,7 @@ class ProcessWebhookView(View):
         # Printing the extracted payment ID and status
         print(f"Payment ID: {payment_id}")
         print(f"Payment Status: {payment_status}")
- 
+
         event_type = webhook_event["event_type"]
         print(event_type)
 
@@ -334,11 +343,11 @@ class ProcessWebhookView(View):
             purchase_units = webhook_event["resource"]["purchase_units"]
             for unit in purchase_units:
                 amount_value = unit.get("amount", {}).get("value")
-                # payment_status = unit.get("status") 
-                # payment_id = unit.get("id") 
+                # payment_status = unit.get("status")
+                # payment_id = unit.get("id")
                 resource = webhook_event["resource"]
                 payment_id = resource.get("id")  # Extract payment ID
-                payment_status = resource.get("status") 
+                payment_status = resource.get("status")
                 print("Payment ID:", payment_id)
                 print("Payment Status:", payment_status)
                 if "custom_id" in unit:
@@ -363,10 +372,10 @@ class ProcessWebhookView(View):
                         # Handle other subscription durations accordingly
                         pass
                     subscription.is_active = True
-                    subscription.is_upgraded = True 
+                    subscription.is_upgraded = True
                     subscription.payment_id = payment_id
                     subscription.amount_paid = amount_value
-                    subscription.payment_status = payment_status  
+                    subscription.payment_status = payment_status
                     subscription.save()
 
         CHECKOUT_ORDER_APPROVED = "CHECKOUT.ORDER.APPROVED"
@@ -380,7 +389,7 @@ class ProcessWebhookView(View):
                 from_email="raorehmat11@email.com",
                 recipient_list=[customer_email]
             )
- 
-       
- 
+
+
+
         return HttpResponse()

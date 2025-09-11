@@ -5,7 +5,7 @@ from accounts.models import User
 
 class PromptSubmission(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    prompt = models.TextField()
+    prompt = models.TextField(blank=True, null=True)
     response = models.TextField(blank=True, null=True)
     image = models.ImageField(upload_to='user_uploads/', blank=True, null=True)
 

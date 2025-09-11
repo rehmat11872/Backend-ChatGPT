@@ -4,14 +4,23 @@ import PyPDF2
 import tempfile
 from PIL import Image
 from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen.canvas import Canvas
+from reportlab.lib import colors
+import pytesseract
+import pdfkit
+from docx import Document
+from fpdf import FPDF
 import concurrent.futures
 from docx2pdf import convert
 from PyPDF2 import PdfReader, PdfWriter
 from django.core.files.base import ContentFile
 from zipfile import ZipFile
-from django.contrib.sites.shortcuts import get_current_site  
+from django.contrib.sites.shortcuts import get_current_site
 from rest_framework.reverse import reverse
-from .models import ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF, OrganizedPdf, UnlockPdf
+from .models import OcrPdf, ProtectedPDF,MergedPDF, CompressedPDF, SplitPDF, OrganizedPdf, StampPdf, UnlockPdf
+
+import math
 
 from django.conf import settings
 
@@ -22,7 +31,7 @@ def protect_pdf(request, input_file, password, user):
     pdf_reader = PdfReader(input_file)
     pdf_writer = PdfWriter()
     input_file_name = input_file.name
-    
+
 
     for page_num in range(len(pdf_reader.pages)):
         pdf_writer.add_page(pdf_reader.pages[page_num])
@@ -37,7 +46,7 @@ def protect_pdf(request, input_file, password, user):
     protected_file.save()
 
     current_site = get_current_site(request)
-    base_url = f'https://{current_site.domain}'
+    base_url = f'http://{current_site.domain}'
     full_url = f'{base_url}{protected_file.protected_file.url}'
 
     return protected_file, full_url
@@ -60,7 +69,7 @@ def merge_pdf(request, user, pdf_list):
     merged_pdf.save()
 
     current_site = get_current_site(request)
-    base_url = f'https://{current_site.domain}'
+    base_url = f'http://{current_site.domain}'
     full_url = f'{base_url}{merged_pdf.merged_file.url}'
 
     return merged_pdf, full_url
@@ -69,7 +78,7 @@ def merge_pdf(request, user, pdf_list):
 def compress_pdf(request, user, input_pdf, compression_quality):
     try:
         # Save the uploaded PDF file to a temporary location
-        
+
         # temp_file_path = os.path.join(temp_path, input_pdf.name)
         temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
 
@@ -84,6 +93,7 @@ def compress_pdf(request, user, input_pdf, compression_quality):
 
         for page_number in range(pdf_document.page_count):
             page = pdf_document[page_number]
+
 
             # Convert the page to a Pixmap
             pixmap = page.get_pixmap()
@@ -111,15 +121,66 @@ def compress_pdf(request, user, input_pdf, compression_quality):
         compressed_pdf.save()
 
         # Clean up the temporary file
-        os.remove(temp_file_path)
+        try:
+            os.remove(temp_file_path)
+        except OSError as e:
+            print(f"Error deleting temporary file: {e}")
 
         current_site = get_current_site(request)
-        base_url = f'https://{current_site.domain}'
+        base_url = f'http://{current_site.domain}'
         full_url = f'{base_url}{compressed_pdf.compressed_file.url}'
 
-        
+
 
         return compressed_pdf, full_url
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+        return None
+
+def stamp_pdf_with_text(input_pdf, stamp_text, user):
+    try:
+        temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
+
+        with open(temp_file_path, 'wb') as temp_file:
+            for chunk in input_pdf.chunks():
+                temp_file.write(chunk)
+
+        pdf_reader = PdfReader(temp_file_path)
+        pdf_writer = PdfWriter()
+
+        watermark_buffer = BytesIO()
+
+        canvas = Canvas(watermark_buffer, pagesize=letter)
+        canvas.setFillColor(colors.Color(0, 0, 0, alpha=0.2))
+        canvas.setFont("Helvetica", 36)
+
+        text_width = canvas.stringWidth(stamp_text, "Helvetica", 36)
+        text_height = 36
+
+        center_x = letter[0] / 2 - (text_width / 2)
+        center_y = letter[1] / 2 - (text_height / 2)
+
+        # Rotate the canvas and draw the rotated text
+        # canvas.rotate(30)  # Rotate by 30 degrees clockwise
+        canvas.drawString(center_x, center_y, stamp_text)
+        canvas.save()
+
+        for page_number in range(len(pdf_reader.pages)):
+            page = pdf_reader.pages[page_number]
+            watermark_pdf = PdfReader(BytesIO(watermark_buffer.getvalue()))
+            watermark_page = watermark_pdf.pages[0]
+            page.merge_page(watermark_page)
+            pdf_writer.add_page(page)
+
+        output_buffer = BytesIO()
+        pdf_writer.write(output_buffer)
+
+        stamped_pdf_instance = StampPdf(user=user)
+        stamped_pdf_instance.pdf.save('stamped_output.pdf', ContentFile(output_buffer.getvalue()))
+        stamped_pdf_instance.save()
+
+        return stamped_pdf_instance
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
@@ -160,7 +221,7 @@ def split_pdf(request, input_pdf, start_page, end_page, user):
         split_pdf_instance.save()
 
     current_site = get_current_site(request)
-    base_url = f'https://{current_site.domain}'
+    base_url = f'http://{current_site.domain}'
     full_url = f'{base_url}{split_pdf_instance.split_pdf.url}'  # Adjust as needed
 
     return split_pdf_instance, full_url
@@ -191,7 +252,7 @@ def create_zip_file(images, user):
     with ZipFile(zip_buffer, 'w') as zip_file:
         for i, image_data in enumerate(images):
             zip_file.writestr(f'page_{i + 1}.jpeg', image_data)
-    
+
     # Ensure the directory exists before saving the zip file
     zip_dir = os.path.join('pdf_images/zips/', str(user.id))
     os.makedirs(zip_dir, exist_ok=True)
@@ -200,7 +261,7 @@ def create_zip_file(images, user):
     zip_file_path = os.path.join(zip_dir, zip_name)
     with open(zip_file_path, 'wb') as zip_file:
         zip_file.write(zip_buffer.getvalue())
-    
+
     return zip_file_path, zip_buffer.getvalue()
 
 
@@ -252,46 +313,102 @@ import subprocess
 import tempfile
 import os
 
-def convert_to_pdf(input_file_path, output_file_path):
+# def convert_to_pdf(input_file_path, output_file_path):
+#     """
+#     Converts a Word document (.docx) to PDF using unoconv and LibreOffice.
+#     """
+#     try:
+
+#         print(input_file_path, 'input_file_path')
+#         print(output_file_path, 'output_file_path')
+#         # Use unoconv to convert the input Word document to PDF
+#         subprocess.run(['unoconv', '-f', 'pdf', '-o', output_file_path, input_file_path], check=True)
+#         return output_file_path
+#     except subprocess.CalledProcessError as e:
+#         print(f"Error during conversion: {e}")
+#         return None
+# def convert_to_pdf(input_file_path, output_file_path):
+#     """
+#     Converts a other document to PDF
+#     """
+#     try:
+#         converter = PyPDF2.Converter()
+#         converter.convert(input_file_path, output_file_path)
+#         converter.close()
+#         return output_file_path
+#     except subprocess.CalledProcessError as e:
+#         print(f"Error during conversion: {e}")
+#         return None
+
+# def word_to_pdf(input_files):
+#     """
+#     Converts a list of Word files to PDF asynchronously.
+#     """
+#     converted_files = []
+
+#     with tempfile.TemporaryDirectory() as temp_dir:
+#         for input_file in input_files:
+#             try:
+#                 if input_file.name.endswith(".docx"):
+#                     input_file_path = os.path.join(temp_dir, input_file.name)
+#                     output_file_path = os.path.join(temp_dir, f"{os.path.splitext(input_file.name)[0]}.pdf")
+
+#                     # Save the input Word file to temporary directory
+#                     with open(input_file_path, 'wb') as temp_file:
+#                         temp_file.write(input_file.read())
+
+#                     # Convert Word to PDF
+#                     converted_file_path = convert_to_pdf(input_file_path, output_file_path)
+
+#                     print(input_file_path, 'input_file_path')
+#                     print(output_file_path, 'output_file_path')
+#                     print(converted_file_path, 'converted_file_path')
+
+#                     if converted_file_path:
+#                         converted_files.append(converted_file_path)
+#             except Exception as e:
+#                 print(f"Error: {e}")
+
+#     return converted_files
+def save_uploaded_file(input_file):
     """
-    Converts a Word document (.docx) to PDF using unoconv and LibreOffice.
+    Saves the uploaded file to a temporary location.
+    """
+    temp_file_path = os.path.join(TEMP_PATH, input_file.name)
+    with open(temp_file_path, 'wb') as temp_file:
+        for chunk in input_file.chunks():
+            temp_file.write(chunk)
+    return temp_file_path
+
+def convert_other_to_pdf(input_file):
+    """
+    Converts uploaded file to PDF format based on its extension.
     """
     try:
-        # Use unoconv to convert the input Word document to PDF
-        subprocess.run(['unoconv', '-f', 'pdf', '-o', output_file_path, input_file_path], check=True)
-        return output_file_path
-    except subprocess.CalledProcessError as e:
-        print(f"Error during conversion: {e}")
-        return None
+        temp_file_path = save_uploaded_file(input_file)
+        output_file_path = temp_file_path.replace(os.path.splitext(input_file.name)[1], '.pdf')
 
-def word_to_pdf(input_files):
-    """
-    Converts a list of Word files to PDF asynchronously.
-    """
-    converted_files = []
+        # Determine conversion command based on file extension
+        file_extension = os.path.splitext(input_file.name)[1].lower()
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        for input_file in input_files:
-            try:
-                if input_file.name.endswith(".docx"):
-                    input_file_path = os.path.join(temp_dir, input_file.name)
-                    output_file_path = os.path.join(temp_dir, f"{os.path.splitext(input_file.name)[0]}.pdf")
+        pdfkit.from_file(input_file, output_file_path)
+        # conversion_command = ['pandoc', temp_file_path, "-o", output_file_path]
+        # if file_extension in ('.txt', '.xlsx'):
+        #     conversion_command.insert(2, "--from=plain")
+        # elif file_extension == '.docx':
+        #     conversion_command.insert(2, "--from=docx")
 
-                    # Save the input Word file to temporary directory
-                    with open(input_file_path, 'wb') as temp_file:
-                        temp_file.write(input_file.read())
+        print(TEMP_PATH, 'TEMP_PATH')
+        print(temp_file_path, 'temp_file_path')
+        print(output_file_path, 'output_file_path')
 
-                    # Convert Word to PDF
-                    converted_file_path = convert_to_pdf(input_file_path, output_file_path)
+        # subprocess.run(['unoconv', '-f', 'pdf', '-o', output_file_path, temp_file_path], check=True)
+        # print(f"Conversion successful. PDF saved as {output_file_path}")
+        # subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', TEMP_PATH, temp_file_path], check=True)
+        # print(f"Conversion successful. PDF saved as {output_file_path}")
 
-                    if converted_file_path:
-                        converted_files.append(converted_file_path)
-            except Exception as e:
-                print(f"Error: {e}")
-
-    return converted_files
-
-
+    except Exception as e:
+        print(f"An error occurred during conversion: {e}")
 
 
 def organize_pdf(input_pdf, user_order, user):
@@ -352,3 +469,57 @@ def unlock_pdf(input_pdf, password, user):
         return unlock_pdf_instance
     else:
         raise ValueError("Failed to unlock the PDF. Incorrect password.")
+
+
+def pdf_to_ocr(input_pdf, user):
+    temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
+
+    with open(temp_file_path, 'wb') as temp_file:
+        for chunk in input_pdf.chunks():
+            temp_file.write(chunk)
+
+    if not os.path.exists(temp_file_path):
+        raise FileNotFoundError(f"Input PDF file '{temp_file_path}' not found.")
+
+    # Configure Tesseract OCR path
+    pytesseract.pytesseract.tesseract_cmd = "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+
+    # Check Tesseract OCR version
+    if not pytesseract.pytesseract.get_tesseract_version():
+        raise RuntimeError("Tesseract OCR is not properly configured. Please set the correct path.")
+
+    pdf_document = fitz.open(temp_file_path)
+    pdf_writer = fitz.open()
+
+    for page_num in range(len(pdf_document)):
+        page = pdf_document.load_page(page_num)
+        image_bytes = page.get_pixmap().tobytes()
+        image = Image.open(BytesIO(image_bytes))
+        ocr_text = pytesseract.image_to_string(image)
+
+        # Add OCR text to a new page in the output PDF
+        new_page = pdf_writer.new_page(width=page.rect.width, height=page.rect.height)
+        new_page.insert_text((0, 0), ocr_text)
+
+    # Save the OCR result as a PDF
+    buffer = BytesIO()
+    pdf_writer.save(buffer)
+    buffer.seek(0)
+
+    # Save the PDF to the database using the OcrPdf model (adjust this part according to your model)
+    pdf = OcrPdf(user=user)
+    pdf.pdf.save('ocr_output.pdf', ContentFile(buffer.getvalue()))
+    pdf.save()
+
+    return pdf
+
+def convert_pdf_page_to_image(pdf_document, page_num):
+    page = pdf_document.load_page(page_num)
+    pixmap = page.get_pixmap()
+    image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+    return image
+
+def perform_ocr_on_image(image):
+    ocr_dict = pytesseract.image_to_data(image, lang='eng', output_type=pytesseract.Output.DICT)
+    ocr_text = " ".join([word for word in ocr_dict['text'] if word.strip()])
+    return ocr_text
