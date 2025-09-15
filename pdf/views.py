@@ -18,6 +18,7 @@ from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiExamp
 from rest_framework import serializers as drf_serializers
 
 
+@extend_schema(tags=['PDF Operations'])
 class ProtectPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -80,6 +81,7 @@ class ProtectPDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(tags=['PDF Operations'])
 class DownloadProtectedPDFView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -92,12 +94,14 @@ class DownloadProtectedPDFView(APIView):
 
 
 
+@extend_schema(exclude=True)
 class ProtectedPDFDeleteView(generics.DestroyAPIView):
     queryset = ProtectedPDF.objects.all()
     serializer_class = ProtectedPDFSerializer
     permission_classes = [IsAuthenticated]
 
 
+@extend_schema(tags=['PDF Operations'])
 class MergePDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -161,11 +165,13 @@ class MergePDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class MergePDFDeleteView(generics.DestroyAPIView):
     queryset = MergedPDF.objects.all()
     serializer_class = MergedPDFSerializer
     permission_classes = [IsAuthenticated]
 
+@extend_schema(tags=['PDF Operations'])
 class CompressPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -234,6 +240,7 @@ class CompressPDFView(APIView):
                 return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class CompressPDFDeleteView(generics.DestroyAPIView):
     queryset = CompressedPDF.objects.all()
     serializer_class = CompressedPDFSerializer
@@ -241,6 +248,7 @@ class CompressPDFDeleteView(generics.DestroyAPIView):
 
 
 
+@extend_schema(tags=['PDF Operations'])
 class SplitPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -308,12 +316,14 @@ class SplitPDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class SplitPDFDeleteView(generics.DestroyAPIView):
     queryset = SplitPDF.objects.all()
     serializer_class = SplitPDFSerializer
     permission_classes = [IsAuthenticated]
 
 
+@extend_schema(tags=['PDF Operations'])
 class PDFToImageConversionView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -402,6 +412,7 @@ class PDFToImageConversionView(APIView):
 
 
 
+@extend_schema(exclude=True)
 class PDFToImageDeleteView(generics.DestroyAPIView):
     queryset = PDFImageConversion.objects.all()
     serializer_class = PDFImageConversionSerializer
@@ -413,6 +424,7 @@ class PDFToImageDeleteView(generics.DestroyAPIView):
 
 
 # name should change to OtherToPdf
+@extend_schema(tags=['PDF Operations'])
 class WordToPdfConversionView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -487,6 +499,7 @@ class WordToPdfConversionView(APIView):
         #     return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class WordToPdfConversionDeleteView(generics.DestroyAPIView):
     queryset = WordToPdfConversion.objects.all()
     serializer_class = WordToPdfConversionSerializer
@@ -498,6 +511,7 @@ class WordToPdfConversionDeleteView(generics.DestroyAPIView):
         instance.delete()
 
 
+@extend_schema(tags=['PDF Operations'])
 class OrganizePDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -561,6 +575,7 @@ class OrganizePDFView(APIView):
 
 
 
+@extend_schema(tags=['PDF Operations'])
 class UnlockPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -616,6 +631,7 @@ class UnlockPDFView(APIView):
 
 
 
+@extend_schema(exclude=True)
 class UnlockPDFDeleteView(generics.DestroyAPIView):
     queryset = UnlockPdf.objects.all()
     serializer_class = UnlockPdfSerializer
@@ -623,6 +639,7 @@ class UnlockPDFDeleteView(generics.DestroyAPIView):
 
 
 
+@extend_schema(tags=['PDF Operations'])
 class StampPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
@@ -678,6 +695,7 @@ class StampPDFView(APIView):
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@extend_schema(tags=['PDF Operations'])
 class OcrPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)

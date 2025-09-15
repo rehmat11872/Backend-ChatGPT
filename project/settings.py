@@ -182,6 +182,19 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    'SORT_OPERATION_PARAMETERS': True,
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'User auth and profile'},
+        {'name': 'Email', 'description': 'Email verification/reset'},
+        {'name': 'PDF Operations', 'description': 'PDF processing endpoints'},
+        {'name': 'Chat', 'description': 'AI chat endpoint'},
+    ],
+    'SCHEMA_PATH_PREFIX': r'/(?:api|accounts|pdf|chat)/',
+    'SERVE_PERMISSIONS': [],
+    'SERVE_PUBLIC': True,
+    'APPEND_COMPONENTS': {},
+    'DISABLE_ERRORS_AND_WARNINGS': False,
+    'ENUM_NAME_OVERRIDES': {},
     'SECURITY_SCHEMES': {
         'Bearer': {
             'type': 'http',
@@ -196,7 +209,6 @@ SPECTACULAR_SETTINGS = {
             'description': 'Token-based auth: Token <token>'
         },
     },
-    # Apply Bearer (JWT) by default for all endpoints. You can also select TokenAuth in the Authorize dialog.
     'SECURITY': [
         {'Bearer': []},
         {'TokenAuth': []},

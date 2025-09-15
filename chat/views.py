@@ -10,6 +10,7 @@ from .serializers import PromptSubmissionSerializer
 from decouple import config
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 import openai
 import base64
 import base64
@@ -18,8 +19,10 @@ from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiExamp
 from .serializers import PromptSubmissionRequestSerializer
 from rest_framework import serializers as drf_serializers
 
+@extend_schema(tags=['Chat'])
 class PromptSubmissionViewSet(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
     # queryset = PromptSubmission.objects.all()
     serializer_class = PromptSubmissionSerializer
 
@@ -75,7 +78,8 @@ class PromptSubmissionViewSet(APIView):
                     }
                 }
             )
-        ]
+        ],
+        tags=['Chat']
     )
     def post(self, request):
 
