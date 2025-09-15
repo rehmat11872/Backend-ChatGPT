@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'drf_spectacular',
 
     #drf
     'rest_framework',
@@ -172,6 +173,39 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'LawTabby API',
+    'DESCRIPTION': 'API documentation for PDF tools and AI integration.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SECURITY_SCHEMES': {
+        'Bearer': {
+            'type': 'http',
+            'scheme': 'bearer',
+            'bearerFormat': 'JWT',
+            'description': 'Use a JWT access token: Bearer <token>'
+        },
+        'TokenAuth': {
+            'type': 'apiKey',
+            'in': 'header',
+            'name': 'Authorization',
+            'description': 'Token-based auth: Token <token>'
+        },
+    },
+    # Apply Bearer (JWT) by default for all endpoints. You can also select TokenAuth in the Authorize dialog.
+    'SECURITY': [
+        {'Bearer': []},
+        {'TokenAuth': []},
+    ],
+}
+
+# Keep the auth in the UI between page reloads
+SWAGGER_UI_SETTINGS = {
+    'persistAuthorization': True,
 }
 
 JWT_AUTH = {

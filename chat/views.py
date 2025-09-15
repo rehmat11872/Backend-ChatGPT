@@ -14,6 +14,9 @@ import openai
 import base64
 import base64
 import requests
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiExample
+from .serializers import PromptSubmissionRequestSerializer
+from rest_framework import serializers as drf_serializers
 
 class PromptSubmissionViewSet(APIView):
     permission_classes = [IsAuthenticated]
@@ -52,6 +55,28 @@ class PromptSubmissionViewSet(APIView):
     #     return StreamingHttpResponse(generate_response(), content_type='text/event-stream')
 
 
+    @extend_schema(
+        request=PromptSubmissionRequestSerializer,
+        responses=inline_serializer(
+            name='OpenAIChatResponse',
+            fields={
+                'success': drf_serializers.BooleanField(),
+                'data': drf_serializers.JSONField(),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Chat Example',
+                value={
+                    'success': True,
+                    'data': {
+                        'role': 'assistant',
+                        'content': 'Your summarized legal advice here.'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request):
 
         try:
