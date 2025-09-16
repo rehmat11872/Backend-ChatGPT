@@ -4,6 +4,60 @@ from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from .models import OcrPdf, ProtectedPDF, MergedPDF, CompressedPDF, SplitPDF, PDFImageConversion, StampPdf, WordToPdfConversion, WordToPdf, OrganizedPdf, UnlockPdf
 
+
+class ProtectPDFRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+    pdf_password = serializers.CharField(required=True)
+
+
+class MergePDFRequestSerializer(serializers.Serializer):
+    pdf_files = serializers.ListField(
+        child=serializers.FileField(),
+        allow_empty=False,
+        help_text='Upload multiple PDF files with the same field name pdf_files.'
+    )
+
+
+class CompressPDFRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+    compression_quality = serializers.ChoiceField(
+        choices=[('extreme', 'extreme'), ('recommended', 'recommended'), ('less', 'less')],
+        default='recommended'
+    )
+
+
+class SplitPDFRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+    start_page = serializers.IntegerField(required=True, min_value=1)
+    end_page = serializers.IntegerField(required=True, min_value=1)
+
+
+class PDFToImageRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+
+
+class WordToPdfRequestSerializer(serializers.Serializer):
+    input_file = serializers.FileField(required=True)
+
+
+class OrganizePDFRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+    user_order = serializers.CharField(help_text='Order list as a string, e.g. [3,2,1]')
+
+
+class UnlockPDFRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+    password = serializers.CharField(required=True)
+
+
+class StampPDFRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+    text = serializers.CharField(required=True)
+
+
+class OcrPDFRequestSerializer(serializers.Serializer):
+    input_pdf = serializers.FileField(required=True)
+
 class ProtectedPDFSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProtectedPDF

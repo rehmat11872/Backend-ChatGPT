@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'drf_spectacular',
 
     #drf
     'rest_framework',
@@ -172,6 +173,51 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'LawTabby API',
+    'DESCRIPTION': 'API documentation for PDF tools and AI integration.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SORT_OPERATION_PARAMETERS': True,
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'User auth and profile'},
+        {'name': 'Email', 'description': 'Email verification/reset'},
+        {'name': 'PDF Operations', 'description': 'PDF processing endpoints'},
+        {'name': 'Chat', 'description': 'AI chat endpoint'},
+    ],
+    'SCHEMA_PATH_PREFIX': r'/(?:api|accounts|pdf|chat)/',
+    'SERVE_PERMISSIONS': [],
+    'SERVE_PUBLIC': True,
+    'APPEND_COMPONENTS': {},
+    'DISABLE_ERRORS_AND_WARNINGS': False,
+    'ENUM_NAME_OVERRIDES': {},
+    'SECURITY_SCHEMES': {
+        'Bearer': {
+            'type': 'http',
+            'scheme': 'bearer',
+            'bearerFormat': 'JWT',
+            'description': 'Use a JWT access token: Bearer <token>'
+        },
+        'TokenAuth': {
+            'type': 'apiKey',
+            'in': 'header',
+            'name': 'Authorization',
+            'description': 'Token-based auth: Token <token>'
+        },
+    },
+    'SECURITY': [
+        {'Bearer': []},
+        {'TokenAuth': []},
+    ],
+}
+
+# Keep the auth in the UI between page reloads
+SWAGGER_UI_SETTINGS = {
+    'persistAuthorization': True,
 }
 
 JWT_AUTH = {

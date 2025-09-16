@@ -13,14 +13,49 @@ from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.contrib.sites.shortcuts import get_current_site
 from .utils import convert_other_to_pdf, pdf_to_ocr, protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, stamp_pdf_with_text,  organize_pdf, unlock_pdf
-from .serializers import OcrPdfSerializer, ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer
+from .serializers import OcrPdfSerializer, ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer, ProtectPDFRequestSerializer, MergePDFRequestSerializer, CompressPDFRequestSerializer, SplitPDFRequestSerializer, PDFToImageRequestSerializer, WordToPdfRequestSerializer, OrganizePDFRequestSerializer, UnlockPDFRequestSerializer, StampPDFRequestSerializer, OcrPDFRequestSerializer
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiExample
+from rest_framework import serializers as drf_serializers
 
 
+@extend_schema(tags=['PDF Operations'])
 class ProtectPDFView(APIView):
     permission_classes = [IsAuthenticated]
-
     parser_classes = (MultiPartParser, FormParser)
+    serializer_class = ProtectPDFRequestSerializer
 
+    @extend_schema(
+        request=ProtectPDFRequestSerializer,
+        responses=inline_serializer(
+            name='ProtectPDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'split_pdf': inline_serializer(
+                    name='ProtectPDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'protected_file': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Protect PDF Example',
+                value={
+                    'message': 'PDF protection completed',
+                    'split_pdf': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'protected_file': 'http://localhost:8000/media/protected/file.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_file = request.data.get('input_pdf', None)
         pdf_password = request.data.get('pdf_password', None)
@@ -46,6 +81,7 @@ class ProtectPDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(tags=['PDF Operations'])
 class DownloadProtectedPDFView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -58,16 +94,51 @@ class DownloadProtectedPDFView(APIView):
 
 
 
+@extend_schema(exclude=True)
 class ProtectedPDFDeleteView(generics.DestroyAPIView):
     queryset = ProtectedPDF.objects.all()
     serializer_class = ProtectedPDFSerializer
     permission_classes = [IsAuthenticated]
 
 
+@extend_schema(tags=['PDF Operations'])
 class MergePDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
+    serializer_class = MergePDFRequestSerializer
 
+    @extend_schema(
+        request=MergePDFRequestSerializer,
+        responses=inline_serializer(
+            name='MergePDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'split_pdf': inline_serializer(
+                    name='MergePDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'merged_file': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Merge PDF Example',
+                value={
+                    'message': 'PDFs merged and saved successfully',
+                    'split_pdf': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'merged_file': 'http://localhost:8000/media/merged/output.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         pdf_files = request.FILES.getlist('pdf_files')
 
@@ -94,15 +165,50 @@ class MergePDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class MergePDFDeleteView(generics.DestroyAPIView):
     queryset = MergedPDF.objects.all()
     serializer_class = MergedPDFSerializer
     permission_classes = [IsAuthenticated]
 
+@extend_schema(tags=['PDF Operations'])
 class CompressPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
+    serializer_class = CompressPDFRequestSerializer
 
+    @extend_schema(
+        request=CompressPDFRequestSerializer,
+        responses=inline_serializer(
+            name='CompressPDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'split_pdf': inline_serializer(
+                    name='CompressPDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'compressed_file': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Compress PDF Example',
+                value={
+                    'message': 'PDF compression completed',
+                    'split_pdf': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'compressed_file': 'http://localhost:8000/media/compressed/output.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
             input_pdf = request.FILES.get('input_pdf', None)
             print(input_pdf, 'input_pdf')
@@ -121,7 +227,7 @@ class CompressPDFView(APIView):
 
                 response_data = {
                 'message': 'PDF compression completed',
-                'split_pdf': {
+                "compressed_pdf": {
                     'id': serializer.data['id'],
                     'user': serializer.data['user'],
                     'created_at': serializer.data['created_at'],
@@ -134,6 +240,7 @@ class CompressPDFView(APIView):
                 return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class CompressPDFDeleteView(generics.DestroyAPIView):
     queryset = CompressedPDF.objects.all()
     serializer_class = CompressedPDFSerializer
@@ -141,9 +248,44 @@ class CompressPDFDeleteView(generics.DestroyAPIView):
 
 
 
+@extend_schema(tags=['PDF Operations'])
 class SplitPDFView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = SplitPDFRequestSerializer
 
+    @extend_schema(
+        request=SplitPDFRequestSerializer,
+        responses=inline_serializer(
+            name='SplitPDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'split_pdf': inline_serializer(
+                    name='SplitPDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'split_pdf': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Split PDF Example',
+                value={
+                    'message': 'PDF splitting completed.',
+                    'split_pdf': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'split_pdf': 'http://localhost:8000/media/split/output.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
         start_page = int(request.data.get('start_page', 0))- 1
@@ -174,16 +316,51 @@ class SplitPDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class SplitPDFDeleteView(generics.DestroyAPIView):
     queryset = SplitPDF.objects.all()
     serializer_class = SplitPDFSerializer
     permission_classes = [IsAuthenticated]
 
 
+@extend_schema(tags=['PDF Operations'])
 class PDFToImageConversionView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
+    serializer_class = PDFToImageRequestSerializer
 
+    @extend_schema(
+        request=PDFToImageRequestSerializer,
+        responses=inline_serializer(
+            name='PDFToImageResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'conversion_data': inline_serializer(
+                    name='PDFToImageData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'zip_file': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'PDF to Image Example',
+                value={
+                    'message': 'PDF to image conversion completed.',
+                    'conversion_data': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'zip_file': 'http://localhost:8000/media/pdf_images/pages.zip'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
 
@@ -235,6 +412,7 @@ class PDFToImageConversionView(APIView):
 
 
 
+@extend_schema(exclude=True)
 class PDFToImageDeleteView(generics.DestroyAPIView):
     queryset = PDFImageConversion.objects.all()
     serializer_class = PDFImageConversionSerializer
@@ -246,9 +424,44 @@ class PDFToImageDeleteView(generics.DestroyAPIView):
 
 
 # name should change to OtherToPdf
+@extend_schema(tags=['PDF Operations'])
 class WordToPdfConversionView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = WordToPdfRequestSerializer
 
+    @extend_schema(
+        request=WordToPdfRequestSerializer,
+        responses=inline_serializer(
+            name='WordToPdfResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'data': inline_serializer(
+                    name='WordToPdfData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'pdf': drf_serializers.FileField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Word to PDF Example',
+                value={
+                    'message': 'PDF pages stamped successfully.',
+                    'data': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'pdf': 'http://localhost:8000/media/converted/output.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_file = request.FILES.get('input_file')
 
@@ -286,6 +499,7 @@ class WordToPdfConversionView(APIView):
         #     return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(exclude=True)
 class WordToPdfConversionDeleteView(generics.DestroyAPIView):
     queryset = WordToPdfConversion.objects.all()
     serializer_class = WordToPdfConversionSerializer
@@ -297,9 +511,44 @@ class WordToPdfConversionDeleteView(generics.DestroyAPIView):
         instance.delete()
 
 
+@extend_schema(tags=['PDF Operations'])
 class OrganizePDFView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = OrganizePDFRequestSerializer
 
+    @extend_schema(
+        request=OrganizePDFRequestSerializer,
+        responses=inline_serializer(
+            name='OrganizePDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'organized_data': inline_serializer(
+                    name='OrganizePDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'organize_pdf': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Organize PDF Example',
+                value={
+                    'message': 'PDF pages organized successfully.',
+                    'organized_data': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'organize_pdf': 'http://localhost:8000/media/organized/output.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
         user_order = request.data.get('user_order', '')
@@ -326,10 +575,44 @@ class OrganizePDFView(APIView):
 
 
 
+@extend_schema(tags=['PDF Operations'])
 class UnlockPDFView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
+    serializer_class = UnlockPDFRequestSerializer
 
+    @extend_schema(
+        request=UnlockPDFRequestSerializer,
+        responses=inline_serializer(
+            name='UnlockPDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'unlocked_pdf': inline_serializer(
+                    name='UnlockPDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'unlock_pdf': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Unlock PDF Example',
+                value={
+                    'message': 'PDF unlocked successfully.',
+                    'unlocked_pdf': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'unlock_pdf': 'http://localhost:8000/media/unlocked/output.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
         password = request.data.get('password', '')
@@ -348,6 +631,7 @@ class UnlockPDFView(APIView):
 
 
 
+@extend_schema(exclude=True)
 class UnlockPDFDeleteView(generics.DestroyAPIView):
     queryset = UnlockPdf.objects.all()
     serializer_class = UnlockPdfSerializer
@@ -355,9 +639,44 @@ class UnlockPDFDeleteView(generics.DestroyAPIView):
 
 
 
+@extend_schema(tags=['PDF Operations'])
 class StampPDFView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = StampPDFRequestSerializer
 
+    @extend_schema(
+        request=StampPDFRequestSerializer,
+        responses=inline_serializer(
+            name='StampPDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'data': inline_serializer(
+                    name='StampPDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'pdf': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'Stamp PDF Example',
+                value={
+                    'message': 'PDF pages stamped successfully.',
+                    'data': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'pdf': 'http://localhost:8000/media/stamped/file.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
         text = request.data.get('text', '')
@@ -376,9 +695,44 @@ class StampPDFView(APIView):
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@extend_schema(tags=['PDF Operations'])
 class OcrPDFView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = OcrPDFRequestSerializer
 
+    @extend_schema(
+        request=OcrPDFRequestSerializer,
+        responses=inline_serializer(
+            name='OcrPDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'data': inline_serializer(
+                    name='OcrPDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                        'pdf': drf_serializers.URLField(),
+                    }
+                ),
+            }
+        ),
+        examples=[
+            OpenApiExample(
+                'OCR PDF Example',
+                value={
+                    'message': 'OCR to PDF conversion successful.',
+                    'data': {
+                        'id': 1,
+                        'user': 5,
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'pdf': 'http://localhost:8000/media/ocr/output.pdf'
+                    }
+                }
+            )
+        ]
+    )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
 

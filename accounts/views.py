@@ -27,10 +27,22 @@ from allauth.socialaccount.providers.oauth2.views import OAuth2Error
 #Mredirect
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import RedirectView
+from drf_spectacular.utils import extend_schema, inline_serializer
 
 
 
+@extend_schema(tags=['Authentication'])
 class UserRegistrationView(APIView):
+    @extend_schema(
+        request=UserSerializer,
+        responses=inline_serializer(
+            name='RegistrationResponse',
+            fields={
+                'message': serializers.CharField(),
+            }
+        ),
+        tags=['Authentication']
+    )
     def post(self, request):
         serializer = UserSerializer(data=request.data)
         try:
@@ -43,6 +55,16 @@ class UserRegistrationView(APIView):
 
 
 class EmailVerificationAPIView(APIView):
+    @extend_schema(
+        responses=inline_serializer(
+            name='EmailVerificationResponse',
+            fields={
+                'message': serializers.CharField(),
+                'token': serializers.CharField(),
+            }
+        ),
+        tags=['Email']
+    )
     def get(self, request, verification_code):
         try:
             user = User.objects.get(email_verification_code=verification_code, is_active=False)
@@ -58,13 +80,26 @@ class EmailVerificationAPIView(APIView):
 
 
 
+@extend_schema(tags=['Authentication'])
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
 
+@extend_schema(tags=['Authentication'])
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=ChangePasswordSerializer,
+        responses=inline_serializer(
+            name='ChangePasswordResponse',
+            fields={
+                'message': serializers.CharField(),
+                'error': serializers.CharField(required=False),
+            }
+        ),
+        tags=['Authentication']
+    )
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
 
@@ -80,6 +115,7 @@ class ChangePasswordView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(tags=['Authentication'])
 class ProfileAPiView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserProfileSerializer 
@@ -92,6 +128,7 @@ class ProfileAPiView(generics.ListAPIView):
 
 
 
+@extend_schema(exclude=True)
 class GoogleLoginView(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = GOOGLE_REDIRECT_URL
@@ -106,6 +143,7 @@ class GoogleLoginView(SocialLoginView):
 
 
 
+@extend_schema(exclude=True)
 class UserRedirectView(LoginRequiredMixin, RedirectView):
     """
     This view is needed by the dj-rest-auth-library in order to work the google login. It's a bug.
@@ -118,6 +156,7 @@ class UserRedirectView(LoginRequiredMixin, RedirectView):
 
 
 
+@extend_schema(exclude=True)
 class MicrosoftLoginView(SocialLoginView):
     adapter_class = MicrosoftGraphOAuth2Adapter
     callback_url = MICROSOFT_REDIRECT_URL
@@ -129,6 +168,7 @@ class MicrosoftLoginView(SocialLoginView):
 
 
 
+@extend_schema(exclude=True)
 class AppleLoginView(SocialLoginView):
     adapter_class = AppleOAuth2Adapter
     callback_url = APPlE_REDIRECT_URL
