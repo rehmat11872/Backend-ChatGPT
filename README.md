@@ -81,3 +81,19 @@ python3.11 -m venv venv
 For generating the Scret key
 
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+
+
+# check the each install package size
+
+- du -sh $(python -c "import site; print(site.getsitepackages()[0])")/* | sort -h
+
+i uninstalled this package
+pip uninstall scipy
+
+when we need then install again
+
+pip install cipy
+
+# Purge pip cache
+
+-pip cache purge
