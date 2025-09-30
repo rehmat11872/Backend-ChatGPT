@@ -37,7 +37,8 @@ urlpatterns = [
     #sign pdf
     path('sign_pdf/', SignPDFView.as_view(), name='sign_pdf'),
 
-    #stamp pdf with text
+    #OCR operations
     path('ocr_to_pdf/', OcrPDFView.as_view(), name='ocr_to_pdf'),
+    path('extract_text/', ExtractTextView.as_view(), name='extract_text'),
 
 ]

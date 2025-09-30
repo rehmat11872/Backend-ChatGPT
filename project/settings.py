@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'payment',
     'pdf',
     'chat',
+    'ai',
 ]
 
 MIDDLEWARE = [
@@ -353,4 +354,7 @@ SOCIAL_AUTH_APPLE_PRIVATE_KEY = config('SOCIAL_AUTH_APPLE_PRIVATE_KEY', default=
 PAYPAL_CLIENT_ID = config('PAYPAL_CLIENT_ID', default='')
 PAYPAL_CLIENT_SECRET = config('PAYPAL_CLIENT_SECRET', default='')
 PAYPAL_WEBHOOK_ID = config('PAYPAL_WEBHOOK_ID', default='')
+
+# OpenAI API key
+OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
 

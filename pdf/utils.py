@@ -486,66 +486,170 @@ def unlock_pdf(input_pdf, password, user):
 
 
 def pdf_to_ocr(input_pdf, user):
+    """Process PDF with OCR and return searchable PDF with extracted text"""
     try:
         temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
-
+        
         with open(temp_file_path, 'wb') as temp_file:
             for chunk in input_pdf.chunks():
                 temp_file.write(chunk)
-
-        if not os.path.exists(temp_file_path):
-            raise FileNotFoundError(f"Input PDF file '{temp_file_path}' not found.")
-
-        # Simple OCR processing - extract text and create a basic text PDF
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import letter
         
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=letter)
+        # Use the OCR processor
+        from .ocr_processor import PDFOCRProcessor
+        processor = PDFOCRProcessor()
         
-        # Add simple OCR text to PDF
-        c.drawString(100, 750, "OCR Processing Complete")
-        c.drawString(100, 730, f"Original file: {input_pdf.name}")
-        c.drawString(100, 710, "Text extraction completed successfully")
-        c.save()
+        # Process PDF and get structured results
+        ocr_results = processor.process_pdf(temp_file_path, output_format='structured')
         
-        buffer.seek(0)
-
-        # Save the PDF to the database using the OcrPdf model
+        # Extract text from results
+        extracted_text = [page['text'] for page in ocr_results['extracted_text']]
+        
+        # Create searchable PDF with extracted text
+        searchable_pdf_buffer = create_searchable_pdf(temp_file_path, extracted_text, ocr_results)
+        
+        # Save to database
         pdf = OcrPdf(user=user)
-        pdf.pdf.save('ocr_output.pdf', ContentFile(buffer.getvalue()))
+        pdf.pdf.save('ocr_output.pdf', ContentFile(searchable_pdf_buffer.getvalue()))
         pdf.save()
-
-        # Clean up temp file
+        
+        # Clean up
         try:
             os.remove(temp_file_path)
         except OSError:
             pass
-
-        return pdf
+            
+        return pdf, extracted_text
         
     except Exception as e:
         print(f"OCR Error: {str(e)}")
-        # Return a simple test PDF if OCR fails
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=letter)
-        c.drawString(100, 750, "OCR Test Document")
-        c.drawString(100, 730, f"File: {input_pdf.name}")
-        c.save()
-        buffer.seek(0)
+        raise e
+
+
+def extract_text_from_pdf(pdf_path):
+    """Extract text from PDF using the OCR processor"""
+    from .ocr_processor import PDFOCRProcessor
+    
+    processor = PDFOCRProcessor()
+    results = processor.process_pdf(pdf_path, output_format='structured')
+    
+    # Return list of text from each page
+    return [page['text'] for page in results['extracted_text']]
+
+
+def perform_ocr_on_page(page):
+    """Perform OCR on a single PDF page"""
+    try:
+        # Convert page to image
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Higher resolution
+        image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
         
-        pdf = OcrPdf(user=user)
-        pdf.pdf.save('ocr_test.pdf', ContentFile(buffer.getvalue()))
-        pdf.save()
-        return pdf
+        # Perform OCR
+        text = pytesseract.image_to_string(image, lang='eng')
+        return text.strip()
+    except Exception as e:
+        print(f"OCR failed for page: {str(e)}")
+        return ""
+
+
+def create_searchable_pdf(original_pdf_path, extracted_texts, ocr_results=None):
+    """Create a searchable PDF with extracted text and processing metadata"""
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Add title
+    title = Paragraph("OCR Processed Document", styles['Title'])
+    story.append(title)
+    story.append(Spacer(1, 12))
+    
+    # Add processing summary if available
+    if ocr_results:
+        summary_data = [
+            ['Total Pages', str(ocr_results['total_pages'])],
+            ['Pages with Existing Text', str(ocr_results['pages_with_existing_text'])],
+            ['Pages Requiring OCR', str(ocr_results['pages_requiring_ocr'])],
+            ['Processing Status', ocr_results['processing_status'].title()]
+        ]
+        
+        summary_table = Table(summary_data, colWidths=[3*72, 2*72])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(Paragraph("Processing Summary", styles['Heading2']))
+        story.append(summary_table)
+        story.append(Spacer(1, 20))
+    
+    # Add extracted text from each page
+    story.append(Paragraph("Extracted Text Content", styles['Heading2']))
+    story.append(Spacer(1, 12))
+    
+    for i, text in enumerate(extracted_texts, 1):
+        if text.strip():
+            page_title = Paragraph(f"Page {i}", styles['Heading3'])
+            story.append(page_title)
+            
+            # Clean and format text
+            cleaned_text = text.replace('\n', '<br/>').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            if len(cleaned_text) > 5000:  # Truncate very long text
+                cleaned_text = cleaned_text[:5000] + '<br/><i>[Text truncated...]</i>'
+            
+            text_para = Paragraph(cleaned_text, styles['Normal'])
+            story.append(text_para)
+            story.append(Spacer(1, 12))
+        else:
+            # Empty page
+            empty_page = Paragraph(f"Page {i} - No text content found", styles['Heading3'])
+            story.append(empty_page)
+            story.append(Spacer(1, 12))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+def get_pdf_text_content(pdf_path):
+    """Get all text content from PDF as plain text"""
+    all_text = []
+    
+    with fitz.open(pdf_path) as pdf_document:
+        for page_num in range(pdf_document.page_count):
+            page = pdf_document[page_num]
+            text = page.get_text()
+            if text.strip():
+                all_text.append(f"--- Page {page_num + 1} ---\n{text}")
+    
+    return "\n\n".join(all_text)
+
 
 def convert_pdf_page_to_image(pdf_document, page_num):
+    """Convert PDF page to image for OCR processing"""
     page = pdf_document.load_page(page_num)
-    pixmap = page.get_pixmap()
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # Higher resolution
     image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
     return image
 
+
 def perform_ocr_on_image(image):
-    ocr_dict = pytesseract.image_to_data(image, lang='eng', output_type=pytesseract.Output.DICT)
-    ocr_text = " ".join([word for word in ocr_dict['text'] if word.strip()])
-    return ocr_text
+    """Perform OCR on image and return extracted text"""
+    try:
+        # Use pytesseract with better configuration
+        custom_config = r'--oem 3 --psm 6'
+        text = pytesseract.image_to_string(image, lang='eng', config=custom_config)
+        return text.strip()
+    except Exception as e:
+        print(f"OCR failed: {str(e)}")
+        return ""
