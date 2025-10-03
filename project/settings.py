@@ -140,12 +140,18 @@ CORS_ALLOW_HEADERS = ['*']
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+if config('USE_POSTGRESQL', default=False, cast=bool):
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(config('DATABASE_URL'))
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
+    }
 
 
 # Password validation
@@ -357,4 +363,7 @@ PAYPAL_WEBHOOK_ID = config('PAYPAL_WEBHOOK_ID', default='')
 
 # OpenAI API key
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
+
+# CourtListener API key
+COURTLISTENER_API_KEY = config('COURTLISTENER_API_KEY', default='')
 
