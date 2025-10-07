@@ -114,3 +114,50 @@ class ConversationMessage(models.Model):
     class Meta:
         db_table = 'ai_conversation_messages'
         ordering = ['created_at']
+
+# Citation Maps Models
+class CourtCase(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=500)
+    citation = models.CharField(max_length=200, unique=True)
+    court = models.CharField(max_length=200)
+    jurisdiction = models.CharField(max_length=100)
+    date_decided = models.DateField(null=True, blank=True)
+    summary = models.TextField(blank=True)
+    # Graph algorithm scores
+    pagerank_score = models.FloatField(default=0.0)
+    betweenness_score = models.FloatField(default=0.0)
+    citation_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'court_cases'
+        indexes = [
+            models.Index(fields=['citation']),
+            models.Index(fields=['court']),
+            models.Index(fields=['jurisdiction']),
+        ]
+
+class Citation(models.Model):
+    CITATION_TYPES = [
+        ('positive', 'Positive'),
+        ('negative', 'Negative'),
+        ('neutral', 'Neutral'),
+        ('distinguished', 'Distinguished'),
+        ('overruled', 'Overruled'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    citing_case = models.ForeignKey(CourtCase, on_delete=models.CASCADE, related_name='citations_made')
+    cited_case = models.ForeignKey(CourtCase, on_delete=models.CASCADE, related_name='citations_received')
+    citation_type = models.CharField(max_length=20, choices=CITATION_TYPES, default='neutral')
+    weight = models.FloatField(default=1.0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'citations'
+        unique_together = ['citing_case', 'cited_case']
+        indexes = [
+            models.Index(fields=['citing_case']),
+            models.Index(fields=['cited_case']),
+        ]

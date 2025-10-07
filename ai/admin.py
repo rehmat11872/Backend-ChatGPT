@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Document, DocumentChunk, VectorEmbedding, Conversation, ConversationMessage, Organization, Judge, Case, AuditLog
+from .models import Document, DocumentChunk, VectorEmbedding, Conversation, ConversationMessage, Organization, Judge, Case, AuditLog, CourtCase, Citation
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
@@ -60,3 +60,17 @@ class AuditLogAdmin(admin.ModelAdmin):
     list_filter = ['organization', 'timestamp']
     search_fields = ['user__email', 'query']
     readonly_fields = ['id', 'timestamp']
+
+@admin.register(CourtCase)
+class CourtCaseAdmin(admin.ModelAdmin):
+    list_display = ['title', 'citation', 'court', 'jurisdiction', 'pagerank_score', 'citation_count', 'created_at']
+    list_filter = ['court', 'jurisdiction', 'created_at']
+    search_fields = ['title', 'citation', 'court']
+    readonly_fields = ['id', 'created_at']
+
+@admin.register(Citation)
+class CitationAdmin(admin.ModelAdmin):
+    list_display = ['citing_case', 'cited_case', 'citation_type', 'weight', 'created_at']
+    list_filter = ['citation_type', 'created_at']
+    search_fields = ['citing_case__title', 'cited_case__title']
+    readonly_fields = ['id', 'created_at']

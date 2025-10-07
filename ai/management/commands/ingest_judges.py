@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from ai.courtlistener_service import CourtListenerService
+# from ai.courtlistener_service import CourtListenerService  # Disabled
 
 class Command(BaseCommand):
     help = 'Ingest judge data from CourtListener API'

@@ -203,6 +203,7 @@ SPECTACULAR_SETTINGS = {
         {'name': 'Email', 'description': 'Email verification/reset'},
         {'name': 'PDF Operations', 'description': 'PDF processing endpoints'},
         {'name': 'Chat', 'description': 'AI chat endpoint'},
+        {'name': 'Legal AI', 'description': 'U.S. legal research assistant with file upload support'},
     ],
     'SCHEMA_PATH_PREFIX': r'/(?:api|accounts|pdf|chat)/',
     'SERVE_PERMISSIONS': [],

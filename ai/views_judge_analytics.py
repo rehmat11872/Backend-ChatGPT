@@ -3,8 +3,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import json
 from .models import Judge, Case
-from .courtlistener_service import CourtListenerService
-from .analytics_engine import JudgeAnalyticsEngine
+# from .courtlistener_service import CourtListenerService  # Disabled
+# from .analytics_engine import JudgeAnalyticsEngine  # Disabled
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from datetime import timedelta
@@ -17,20 +17,10 @@ def ingest_judge_data(request):
         data = json.loads(request.body)
         limit = data.get('limit', 50)
         
-        service = CourtListenerService()
+        # service = CourtListenerService()  # Disabled
+        return JsonResponse({'error': 'CourtListener service not available'}, status=501)
         
-        # Ingest judges
-        judges_created = service.ingest_judge_data(limit=limit)
-        
-        # Link cases to judges
-        cases_linked = service.link_cases_to_judges(limit=limit)
-        
-        return JsonResponse({
-            'success': True,
-            'judges_created': judges_created,
-            'cases_linked': cases_linked,
-            'message': f'Successfully ingested {judges_created} judges and linked {cases_linked} cases'
-        })
+
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
@@ -69,10 +59,9 @@ def get_judge_analytics(request, judge_id):
     """Get detailed analytics for a specific judge"""
     try:
         judge = Judge.objects.get(id=judge_id)
-        analytics_engine = JudgeAnalyticsEngine()
-        
-        # Get comprehensive analytics
-        analytics_data = analytics_engine.get_comprehensive_analytics(judge_id)
+        # analytics_engine = JudgeAnalyticsEngine()  # Disabled
+        # analytics_data = analytics_engine.get_comprehensive_analytics(judge_id)  # Disabled
+        analytics_data = {'error': 'Analytics engine not available'}
         
         return JsonResponse({
             'success': True,
@@ -184,8 +173,9 @@ def get_court_statistics(request):
 def get_court_comparison(request, court_name):
     """Get comparison analytics for judges in a specific court"""
     try:
-        analytics_engine = JudgeAnalyticsEngine()
-        comparison_data = analytics_engine.get_court_comparison(court_name)
+        # analytics_engine = JudgeAnalyticsEngine()  # Disabled
+        # comparison_data = analytics_engine.get_court_comparison(court_name)  # Disabled
+        comparison_data = {'error': 'Analytics engine not available'}
         
         return JsonResponse({
             'success': True,

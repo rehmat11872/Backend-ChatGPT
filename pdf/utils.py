@@ -8,9 +8,9 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib import colors
 import pytesseract
-import pdfkit
-from docx import Document
-from fpdf import FPDF
+# import pdfkit
+# from docx import Document
+# from fpdf import FPDF
 import concurrent.futures
 from docx2pdf import convert
 from PyPDF2 import PdfReader, PdfWriter
