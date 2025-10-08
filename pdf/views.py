@@ -16,6 +16,7 @@ from .utils import convert_other_to_pdf, protect_pdf, merge_pdf, compress_pdf, s
 from .serializers import OcrPdfSerializer, ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer, ProtectPDFRequestSerializer, MergePDFRequestSerializer, CompressPDFRequestSerializer, SplitPDFRequestSerializer, PDFToImageRequestSerializer, WordToPdfRequestSerializer, OrganizePDFRequestSerializer, UnlockPDFRequestSerializer, StampPDFRequestSerializer, OcrPDFRequestSerializer
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiExample
 from rest_framework import serializers as drf_serializers
+from project import settings
 
 
 @extend_schema(tags=['PDF Operations'])
@@ -170,10 +171,9 @@ class MergePDFDeleteView(generics.DestroyAPIView):
 class CompressPDFView(APIView):
     permission_classes = [AllowAny]
     parser_classes = (MultiPartParser, FormParser)
-    serializer_class = CompressPDFRequestSerializer
 
     @extend_schema(
-        request=CompressPDFRequestSerializer,
+        request=None,
         responses=inline_serializer(
             name='CompressPDFResponse',
             fields={
@@ -205,30 +205,46 @@ class CompressPDFView(APIView):
         ]
     )
     def post(self, request, format=None):
-            input_pdf = request.FILES.get('input_pdf', None)
-            print(input_pdf, 'input_pdf')
-            compression_quality = request.data.get('compression_quality', 'recommended')
-            print(compression_quality, 'compression_quality')
+        input_pdf = request.FILES.get('input_pdf', None)
+        print(input_pdf, 'input_pdf')
 
-            if not input_pdf:
-                return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        compression_quality = request.data.get('compression_quality', 'recommended')
 
-            try:
-                # Simple test response for compress functionality
-                response_data = {
+        if not input_pdf:
+            return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Define folder to save compressed PDF
+            output_dir = os.path.join(settings.MEDIA_ROOT, "compressed")
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Create compressed file name
+            output_filename = f"compressed_{compression_quality}_quality.pdf"
+            output_path = os.path.join(output_dir, output_filename)
+
+            # TODO: Add actual compression logic here
+            # For now, just save uploaded PDF as "compressed"
+            with open(output_path, "wb") as f:
+                for chunk in input_pdf.chunks():
+                    f.write(chunk)
+
+            # Build full URL for frontend
+            file_url = request.build_absolute_uri(f"/media/compressed/{output_filename}")
+
+            response_data = {
                 'message': 'PDF compression completed',
                 "split_pdf": {
                     'id': 789,
                     'user': 1,
                     'created_at': '2024-01-01T00:00:00Z',
-                    'compressed_file': f'compressed_{compression_quality}_quality.pdf',
+                    'compressed_file': file_url,
                     'compression_quality': compression_quality
-                    },
-                }
-                return Response(response_data)
+                },
+            }
+            return Response(response_data)
 
-            except Exception as e:
-                return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @extend_schema(exclude=True)
