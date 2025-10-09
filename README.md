@@ -108,3 +108,4 @@ GRANT ALL PRIVILEGES ON DATABASE legal_ai_db TO legal_ai_user;
 -- 4️⃣ Verify users and databases
 \du
 \l
+
