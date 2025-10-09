@@ -184,6 +184,7 @@ CORS_ORIGIN_WHITELIST = (
     'http://localhost:5173',
     # 'https://lawtabby.netlify.app',
     'https://ai-lawyer.neuracase.com',
+    'https://lawtabby-new-design.netlify.app',
 )
 
 
