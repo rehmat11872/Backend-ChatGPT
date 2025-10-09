@@ -116,14 +116,40 @@ class ChangePasswordView(APIView):
 
 
 @extend_schema(tags=['Authentication'])
-class ProfileAPiView(generics.ListAPIView):
+class ProfileAPiView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = UserProfileSerializer 
-
-    def get_queryset(self):
-        user = self.request.user
-        queryset = User.objects.filter(email=user.email)
-        return queryset
+    
+    @extend_schema(
+        responses=UserProfileSerializer,
+        tags=['Authentication']
+    )
+    def get(self, request):
+        serializer = UserProfileSerializer(request.user, context={'request': request})
+        return Response(serializer.data)
+    
+    @extend_schema(
+        request=UserProfileSerializer,
+        responses=UserProfileSerializer,
+        tags=['Authentication']
+    )
+    def patch(self, request):
+        serializer = UserProfileSerializer(request.user, data=request.data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @extend_schema(
+        responses=inline_serializer(
+            name='DeleteProfileResponse',
+            fields={'message': serializers.CharField()}
+        ),
+        tags=['Authentication']
+    )
+    def delete(self, request):
+        user = request.user
+        user.delete()
+        return Response({'message': 'Account deleted successfully'}, status=status.HTTP_200_OK)
 
 
 

@@ -51,9 +51,30 @@ class ResetPasswordEmailSerializer(serializers.Serializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    avatar = serializers.ImageField(required=False)
+    
     class Meta:
         model = User
         fields = ['id', 'name', 'avatar', 'email']
+        read_only_fields = ['email']
+    
+    def update(self, instance, validated_data):
+        # Handle avatar upload
+        if 'avatar' in validated_data:
+            # Delete old avatar if exists
+            if instance.avatar:
+                instance.avatar.delete(save=False)
+        
+        return super().update(instance, validated_data)
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Add full URL for avatar if it exists
+        if instance.avatar:
+            request = self.context.get('request')
+            if request:
+                data['avatar'] = request.build_absolute_uri(instance.avatar.url)
+        return data
 
 
 

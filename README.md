@@ -83,17 +83,29 @@ For generating the Scret key
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 
 
-# check the each install package size
+# create db in postgres
 
-- du -sh $(python -c "import site; print(site.getsitepackages()[0])")/* | sort -h
+psql -d postgres
+psql -h localhost -U postgres
+or
+psql -U postgres
+CREATE DATABASE legal_ai_db;
 
-i uninstalled this package
-pip uninstall scipy
+brew list | grep postgresql
 
-when we need then install again
+brew services stop postgresql
+brew services stop postgresql@14
 
-pip install cipy
+-- 1️⃣ Create a new database user (role) for Django
+CREATE ROLE legal_ai_user1 WITH LOGIN PASSWORD 'legal_ai_pass1';
 
-# Purge pip cache
+-- 2️⃣ Create the database your project will use
+CREATE DATABASE legal_ai_db OWNER legal_ai_user1;
 
--pip cache purge
+-- 3️⃣ (Optional) Grant all privileges explicitly
+GRANT ALL PRIVILEGES ON DATABASE legal_ai_db TO legal_ai_user;
+
+-- 4️⃣ Verify users and databases
+\du
+\l
+
