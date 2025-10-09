@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class ChatConfig(AppConfig):
+class LegalAiAgentConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'chat'
+    name = 'legal_ai_agent'

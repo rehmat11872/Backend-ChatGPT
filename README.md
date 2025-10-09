@@ -81,3 +81,30 @@ python3.11 -m venv venv
 For generating the Scret key
 
 python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+
+
+# create db in postgres
+
+psql -d postgres
+psql -h localhost -U postgres
+or
+psql -U postgres
+CREATE DATABASE legal_ai_db;
+
+brew list | grep postgresql
+
+brew services stop postgresql
+brew services stop postgresql@14
+
+-- 1️⃣ Create a new database user (role) for Django
+CREATE ROLE legal_ai_user1 WITH LOGIN PASSWORD 'legal_ai_pass1';
+
+-- 2️⃣ Create the database your project will use
+CREATE DATABASE legal_ai_db OWNER legal_ai_user1;
+
+-- 3️⃣ (Optional) Grant all privileges explicitly
+GRANT ALL PRIVILEGES ON DATABASE legal_ai_db TO legal_ai_user;
+
+-- 4️⃣ Verify users and databases
+\du
+\l

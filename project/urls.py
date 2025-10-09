@@ -33,13 +33,14 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path('payment/', include('payment.urls')),
     path('pdf/', include('pdf.urls')),
-    path('chat/', include('chat.urls')),
-    path('ai/', include('ai.urls')),
+    path('api/', include('legal_ai_agent.urls')),
+
+    #Swagger Docs — clean and single URL
+    #Returns the raw OpenAPI schema (JSON).
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='schema-swagger-ui'),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='schema-redoc'),
+    #Shows Swagger UI with full interactive documentation.
     path('swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL,
