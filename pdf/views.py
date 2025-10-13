@@ -8,7 +8,8 @@ from PyPDF2 import PdfReader, PdfWriter
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.http import FileResponse, HttpResponse
-from .models import ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF,CompressedPDF, SplitPDF, UnlockPdf
+from django.conf import settings
+from .models import OcrPdf, ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF,CompressedPDF, SplitPDF, UnlockPdf
 from django.shortcuts import get_object_or_404
 from django.core.files.base import ContentFile
 from django.contrib.sites.shortcuts import get_current_site
@@ -359,16 +360,29 @@ class PDFToImageConversionView(APIView):
             return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Simple test response for PDF conversion
+            user = request.user
+            
+            # Convert PDF to images
+            images = convert_pdf_to_image(input_pdf)
+            
+            # Create ZIP file with images
+            zip_file_path, zip_content = create_zip_file(images, user)
+            
+            # Save to database
+            conversion_instance = PDFImageConversion(user=user)
+            conversion_instance.zip_file.save('pdf_images.zip', ContentFile(zip_content))
+            conversion_instance.save()
+            
+            # Get full URL
+            current_site = get_current_site(request)
+            base_url = f'http://{current_site.domain}'
+            zip_url = f'{base_url}{conversion_instance.zip_file.url}'
+            
+            serializer = PDFImageConversionSerializer(conversion_instance, context={'request': request})
+            
             response_data = {
                 'message': f'PDF to {output_format} conversion completed.',
-                'conversion_data': {
-                    'id': 888,
-                    'user': 1,
-                    'created_at': '2024-01-01T00:00:00Z',
-                    'zip_file': f'converted_{output_format.lower()}_images.zip',
-                    'output_format': output_format
-                },
+                'conversion_data': serializer.data
             }
             return Response(response_data)
 
@@ -557,23 +571,24 @@ class OrganizePDFView(APIView):
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
         user_order = request.data.get('user_order', '')
-        try:
-            # Convert the string to a list
-            user_order = list(map(int, user_order.strip('[]').split(',')))
-            print(type(user_order))
-        except ValueError:
-            return Response({'error': 'Invalid user order format.'}, status=status.HTTP_400_BAD_REQUEST)
-
-
+        
         if not input_pdf or not user_order:
             return Response({'error': 'No input PDF file or user order provided.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            # Convert the string to a list
+            if isinstance(user_order, str):
+                user_order = list(map(int, user_order.strip('[]').split(',')))
+            elif isinstance(user_order, list):
+                user_order = list(map(int, user_order))
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid user order format.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             user = request.user
-            user_order = list(map(int, user_order))
-            converted_file = organize_pdf(input_pdf, user_order, user)
+            organized_pdf = organize_pdf(input_pdf, user_order, user)
 
-            serializer = OrganizedPdfSerializer(converted_file, context={'request': request})
+            serializer = OrganizedPdfSerializer(organized_pdf, context={'request': request})
             return Response({'message': 'PDF pages organized successfully.', 'organized_data': serializer.data})
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -788,38 +803,27 @@ class OcrPDFView(APIView):
             return Response({'error': 'No input PDF file.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            import tempfile
-            from .ocr_processor import PDFOCRProcessor
+            user = request.user
             
-            # Save uploaded file temporarily
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                for chunk in input_pdf.chunks():
-                    temp_file.write(chunk)
-                temp_path = temp_file.name
+            # Process PDF with OCR and save to database
+            ocr_pdf, extracted_text = pdf_to_ocr(input_pdf, user)
             
-            # Process PDF with OCR
-            processor = PDFOCRProcessor()
-            ocr_results = processor.process_pdf(temp_path, output_format='structured')
+            # Create text preview
+            full_text = '\n'.join(extracted_text)
+            text_preview = full_text[:500] + '...' if len(full_text) > 500 else full_text
             
-            # Extract text from results
-            extracted_text = [page['text'] for page in ocr_results['extracted_text']]
-            text_preview = '\n'.join(extracted_text)[:500] + '...' if len('\n'.join(extracted_text)) > 500 else '\n'.join(extracted_text)
+            # Get full URL
+            current_site = get_current_site(request)
+            base_url = f'http://{current_site.domain}'
+            pdf_url = f'{base_url}{ocr_pdf.pdf.url}'
             
-            # Clean up temp file
-            os.remove(temp_path)
+            serializer = OcrPdfSerializer(ocr_pdf, context={'request': request})
             
             response_data = {
                 'message': 'OCR processing completed successfully.',
-                'data': {
-                    'id': 1,
-                    'user': 1,
-                    'created_at': '2024-01-01T00:00:00Z',
-                    'pdf': f'ocr_{input_pdf.name}'
-                },
+                'data': serializer.data,
                 'extracted_text_preview': text_preview,
-                'total_pages_processed': ocr_results['total_pages'],
-                'pages_with_existing_text': ocr_results['pages_with_existing_text'],
-                'pages_requiring_ocr': ocr_results['pages_requiring_ocr']
+                'total_pages_processed': len(extracted_text)
             }
             
             return Response(response_data)
