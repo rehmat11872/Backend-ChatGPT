@@ -101,3 +101,27 @@ psycopg2-binary==2.9.9
 pgvector==0.2.4
 numpy>=1.24.0
 dj-database-url==2.1.0
+# newly added
+Django
+python-decouple
+dj-database-url
+drf-spectacular
+django-rest-passwordreset
+drf-yasg
+django-cors-headers
+dj-rest-auth
+django-allauth
+psycopg2-binary
+requests
+PyJWT
+cryptography
+djangorestframework-simplejwt
+stripe
+PyPDF2
+PyMuPDF
+Pillow
+reportlab
+pytesseract
+docx2pdf
+python-docx
+openai

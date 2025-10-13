@@ -43,7 +43,6 @@ WHEN YOU CAN'T ANSWER:
 ==========================
 RESPONSE FORMAT (CHAT STYLE):
 ==========================
-**Answer:**  
 → Start with a concise, direct explanation that feels natural in chat.  
 → Example: “Sure! Under U.S. law, employers can terminate an at-will employee for almost any reason, as long as it isn’t discriminatory or retaliatory.”
 
