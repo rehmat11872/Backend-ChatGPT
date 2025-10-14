@@ -283,7 +283,15 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "https://ai-lawyer.neuracase.com",
 ]
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE"]
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]
+
 CORS_ALLOW_HEADERS = ["*"]
 
 CORS_ORIGIN_ALLOW_ALL = True
