@@ -448,46 +448,47 @@ class WordToPdfConversionView(APIView):
             return Response({'error': 'No input files provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            from docx2pdf import convert
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import letter
+            from docx import Document
             import tempfile
             from django.core.files.base import ContentFile
+            from io import BytesIO
             
             conversion_instance = WordToPdfConversion(user=request.user)
             conversion_instance.save()
             
-            converted_files = []
-            
             for input_file in input_files:
                 if input_file.name.endswith('.docx'):
-                    # Save input file temporarily
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_input:
-                        for chunk in input_file.chunks():
-                            temp_input.write(chunk)
-                        temp_input_path = temp_input.name
+                    # Extract text from DOCX
+                    doc = Document(input_file)
+                    text_content = '\n'.join([p.text for p in doc.paragraphs])
                     
-                    # Create output path
-                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
-                        temp_output_path = temp_output.name
+                    # Create PDF with ReportLab
+                    buffer = BytesIO()
+                    p = canvas.Canvas(buffer, pagesize=letter)
+                    width, height = letter
                     
-                    # Convert DOCX to PDF
-                    convert(temp_input_path, temp_output_path)
+                    # Simple text rendering
+                    y = height - 50
+                    for line in text_content.split('\n'):
+                        if y < 50:
+                            p.showPage()
+                            y = height - 50
+                        p.drawString(50, y, line[:80])  # Limit line length
+                        y -= 20
                     
-                    # Read converted PDF and save to model
-                    with open(temp_output_path, 'rb') as pdf_file:
-                        pdf_content = pdf_file.read()
-                        
+                    p.save()
+                    pdf_content = buffer.getvalue()
+                    buffer.close()
+                    
+                    # Save to model
                     word_to_pdf_instance = WordToPdf()
                     filename = f"converted_{input_file.name.split('.')[0]}.pdf"
                     word_to_pdf_instance.word_to_pdf.save(filename, ContentFile(pdf_content))
                     word_to_pdf_instance.save()
                     
                     conversion_instance.word_to_pdfs.add(word_to_pdf_instance)
-                    converted_files.append(word_to_pdf_instance)
-                    
-                    # Clean up temp files
-                    import os
-                    os.unlink(temp_input_path)
-                    os.unlink(temp_output_path)
             
             conversion_instance.save()
             

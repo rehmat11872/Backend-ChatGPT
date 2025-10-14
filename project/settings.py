@@ -56,6 +56,7 @@ LOCAL_APPS = [
     "payment",
     "pdf",
     "legal_ai_agent",
+    "document_summarizer",
 ]
 
 # --- Combine All Apps ---
@@ -173,8 +174,9 @@ CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv())
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "https://ai-lawyer.neuracase.com",
+    " https://lawtabby-frontend.netlify.app",
 ]
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE"]
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH"]
 CORS_ALLOW_HEADERS = ["*"]
 
 CORS_ORIGIN_ALLOW_ALL = True
@@ -185,6 +187,7 @@ CORS_ORIGIN_WHITELIST = (
     # 'https://lawtabby.netlify.app',
     'https://ai-lawyer.neuracase.com',
     'https://lawtabby-new-design.netlify.app',
+    "https://lawtabby-frontend.netlify.app",
 )
 
 
