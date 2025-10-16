@@ -34,6 +34,7 @@ urlpatterns = [
     path('payment/', include('payment.urls')),
     path('pdf/', include('pdf.urls')),
     path('api/', include('legal_ai_agent.urls')),
+    path('documents/', include('document_summarizer.urls')),
 
     #Swagger Docs — clean and single URL
     #Returns the raw OpenAPI schema (JSON).
