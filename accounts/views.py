@@ -28,21 +28,19 @@ from allauth.socialaccount.providers.oauth2.views import OAuth2Error
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import RedirectView
 from drf_spectacular.utils import extend_schema, inline_serializer
-
+from accounts.schemas import (
+    register_user_schema,
+    email_verification_schema,
+    change_password_schema,
+    profile_get_schema,
+    profile_patch_schema,
+    profile_delete_schema
+)
 
 
 @extend_schema(tags=['Authentication'])
 class UserRegistrationView(APIView):
-    @extend_schema(
-        request=UserSerializer,
-        responses=inline_serializer(
-            name='RegistrationResponse',
-            fields={
-                'message': serializers.CharField(),
-            }
-        ),
-        tags=['Authentication']
-    )
+    @register_user_schema
     def post(self, request):
         serializer = UserSerializer(data=request.data)
         try:
@@ -55,16 +53,7 @@ class UserRegistrationView(APIView):
 
 
 class EmailVerificationAPIView(APIView):
-    @extend_schema(
-        responses=inline_serializer(
-            name='EmailVerificationResponse',
-            fields={
-                'message': serializers.CharField(),
-                'token': serializers.CharField(),
-            }
-        ),
-        tags=['Email']
-    )
+    @email_verification_schema
     def get(self, request, verification_code):
         try:
             user = User.objects.get(email_verification_code=verification_code, is_active=False)
@@ -89,17 +78,7 @@ class MyTokenObtainPairView(TokenObtainPairView):
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(
-        request=ChangePasswordSerializer,
-        responses=inline_serializer(
-            name='ChangePasswordResponse',
-            fields={
-                'message': serializers.CharField(),
-                'error': serializers.CharField(required=False),
-            }
-        ),
-        tags=['Authentication']
-    )
+    @change_password_schema
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
 
@@ -119,19 +98,12 @@ class ChangePasswordView(APIView):
 class ProfileAPiView(APIView):
     permission_classes = [IsAuthenticated]
     
-    @extend_schema(
-        responses=UserProfileSerializer,
-        tags=['Authentication']
-    )
+    @profile_get_schema
     def get(self, request):
         serializer = UserProfileSerializer(request.user, context={'request': request})
         return Response(serializer.data)
     
-    @extend_schema(
-        request=UserProfileSerializer,
-        responses=UserProfileSerializer,
-        tags=['Authentication']
-    )
+    @profile_patch_schema
     def patch(self, request):
         serializer = UserProfileSerializer(request.user, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
@@ -139,13 +111,7 @@ class ProfileAPiView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @extend_schema(
-        responses=inline_serializer(
-            name='DeleteProfileResponse',
-            fields={'message': serializers.CharField()}
-        ),
-        tags=['Authentication']
-    )
+    @profile_delete_schema
     def delete(self, request):
         user = request.user
         user.delete()
@@ -216,4 +182,15 @@ class AppleLoginView(SocialLoginView):
 
 
 
+@extend_schema(tags=['Authentication'])
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            # Delete the user's current token
+            Token.objects.filter(user=request.user).delete()
+            return Response({"message": "Successfully logged out."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
