@@ -60,6 +60,14 @@ class ProtectPDFView(APIView):
     def post(self, request, format=None):
         input_file = request.data.get('input_pdf', None)
         pdf_password = request.data.get('pdf_password', None)
+        
+        # Get permissions
+        allow_printing = request.data.get('allow_printing', 'true').lower() == 'true'
+        allow_copying = request.data.get('allow_copying', 'true').lower() == 'true'
+        allow_editing = request.data.get('allow_editing', 'false').lower() == 'true'
+        allow_comments = request.data.get('allow_comments', 'true').lower() == 'true'
+        allow_form_filling = request.data.get('allow_form_filling', 'true').lower() == 'true'
+        allow_document_assembly = request.data.get('allow_document_assembly', 'false').lower() == 'true'
 
         if not input_file or not pdf_password:
             return Response({'error': 'Incomplete data provided.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -75,14 +83,27 @@ class ProtectPDFView(APIView):
                     defaults={'password': 'testpass123'}
                 )
             
-            # Protect PDF
+            # Protect PDF with permissions
             reader = PdfReader(input_file)
             writer = PdfWriter()
             
             for page in reader.pages:
                 writer.add_page(page)
             
-            writer.encrypt(pdf_password)
+            # Set permissions based on user input
+            writer.encrypt(
+                user_password=pdf_password,
+                owner_password=pdf_password + '_owner',
+                use_128bit=True,
+                permissions_flag=(
+                    (4 if allow_printing else 0) |
+                    (16 if allow_copying else 0) |
+                    (32 if allow_editing else 0) |
+                    (64 if allow_comments else 0) |
+                    (256 if allow_form_filling else 0) |
+                    (1024 if allow_document_assembly else 0)
+                )
+            )
             
             # Save protected PDF
             from io import BytesIO
@@ -385,8 +406,7 @@ class SplitPDFView(APIView):
     )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
-        start_page = int(request.data.get('start_page', 0)) - 1
-        end_page = int(request.data.get('end_page', 0)) - 1
+        split_type = request.data.get('split_type', 'range')
 
         if not input_pdf:
             return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -402,42 +422,100 @@ class SplitPDFView(APIView):
                     defaults={'password': 'testpass123'}
                 )
             
-            # Split PDF
             reader = PdfReader(input_pdf)
-            writer = PdfWriter()
+            total_pages = len(reader.pages)
+            split_files = []
             
-            for i in range(start_page, end_page + 1):
-                if i < len(reader.pages):
+            if split_type == 'range':
+                start_page = int(request.data.get('start_page', 1)) - 1
+                end_page = int(request.data.get('end_page', total_pages)) - 1
+                
+                if start_page < 0 or end_page >= total_pages or start_page > end_page:
+                    return Response({'error': 'Invalid page range.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                writer = PdfWriter()
+                for i in range(start_page, end_page + 1):
                     writer.add_page(reader.pages[i])
+                
+                split_files.append({
+                    'writer': writer,
+                    'filename': f'split_pages_{start_page+1}_to_{end_page+1}.pdf'
+                })
+                
+            elif split_type == 'pages':
+                pages_per_split = int(request.data.get('pages_per_split', 1))
+                
+                for i in range(0, total_pages, pages_per_split):
+                    writer = PdfWriter()
+                    end_idx = min(i + pages_per_split, total_pages)
+                    
+                    for j in range(i, end_idx):
+                        writer.add_page(reader.pages[j])
+                    
+                    split_files.append({
+                        'writer': writer,
+                        'filename': f'split_part_{i//pages_per_split + 1}_pages_{i+1}_to_{end_idx}.pdf'
+                    })
+                    
+            elif split_type == 'size':
+                max_size_mb = float(request.data.get('max_size_mb', 5.0))
+                max_size_bytes = max_size_mb * 1024 * 1024
+                
+                current_writer = PdfWriter()
+                current_size = 0
+                part_num = 1
+                start_page_num = 1
+                
+                for i, page in enumerate(reader.pages):
+                    current_writer.add_page(page)
+                    
+                    # Estimate size
+                    from io import BytesIO
+                    temp_buffer = BytesIO()
+                    current_writer.write(temp_buffer)
+                    current_size = temp_buffer.tell()
+                    temp_buffer.close()
+                    
+                    if current_size >= max_size_bytes or i == total_pages - 1:
+                        split_files.append({
+                            'writer': current_writer,
+                            'filename': f'split_part_{part_num}_pages_{start_page_num}_to_{i+1}.pdf'
+                        })
+                        current_writer = PdfWriter()
+                        part_num += 1
+                        start_page_num = i + 2
             
-            # Save split PDF
-            from io import BytesIO
-            buffer = BytesIO()
-            writer.write(buffer)
-            buffer.seek(0)
-            
-            split_pdf = SplitPDF(user=user)
-            split_pdf.split_pdf.save(
-                f'split_pages_{start_page+1}_to_{end_page+1}.pdf',
-                ContentFile(buffer.getvalue())
-            )
-            split_pdf.save()
-            
-            # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            file_url = f'{base_url}{split_pdf.split_pdf.url}'
+            # Save all split files
+            saved_files = []
+            for split_file in split_files:
+                from io import BytesIO
+                buffer = BytesIO()
+                split_file['writer'].write(buffer)
+                buffer.seek(0)
+                
+                split_pdf = SplitPDF(user=user)
+                split_pdf.split_pdf.save(
+                    split_file['filename'],
+                    ContentFile(buffer.getvalue())
+                )
+                split_pdf.save()
+                
+                # Get full URL
+                current_site = get_current_site(request)
+                base_url = f'http://{current_site.domain}'
+                file_url = f'{base_url}{split_pdf.split_pdf.url}'
+                
+                saved_files.append({
+                    'id': split_pdf.id,
+                    'filename': split_file['filename'],
+                    'url': file_url
+                })
             
             response_data = {
-                'message': 'PDF splitting completed.',
-                'split_pdf': {
-                    'id': split_pdf.id,
-                    'user': user.id,
-                    'created_at': split_pdf.created_at.isoformat(),
-                    'split_pdf': file_url,
-                    'start_page': start_page + 1,
-                    'end_page': end_page + 1
-                },
+                'message': f'PDF splitting completed. Created {len(saved_files)} files.',
+                'split_type': split_type,
+                'total_files': len(saved_files),
+                'files': saved_files
             }
             return Response(response_data)
 
@@ -710,25 +788,79 @@ class OrganizePDFView(APIView):
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
         user_order = request.data.get('user_order', '')
+        delete_pages = request.data.get('delete_pages', '')
         
-        if not input_pdf or not user_order:
-            return Response({'error': 'No input PDF file or user order provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not input_pdf:
+            return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not user_order and not delete_pages:
+            return Response({'error': 'Either user_order or delete_pages must be provided.'}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
-            # Convert the string to a list
-            if isinstance(user_order, str):
-                user_order = list(map(int, user_order.strip('[]').split(',')))
-            elif isinstance(user_order, list):
-                user_order = list(map(int, user_order))
-        except (ValueError, TypeError):
-            return Response({'error': 'Invalid user order format.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            user = request.user
-            organized_pdf = organize_pdf(input_pdf, user_order, user)
-
-            serializer = OrganizedPdfSerializer(organized_pdf, context={'request': request})
-            return Response({'message': 'PDF pages organized successfully.', 'organized_data': serializer.data})
+            reader = PdfReader(input_pdf)
+            total_pages = len(reader.pages)
+            writer = PdfWriter()
+            
+            if delete_pages:
+                # Parse delete pages
+                try:
+                    if isinstance(delete_pages, str):
+                        pages_to_delete = set(map(int, delete_pages.strip('[]').split(',')))
+                    else:
+                        pages_to_delete = set(map(int, delete_pages))
+                except (ValueError, TypeError):
+                    return Response({'error': 'Invalid delete pages format.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Add all pages except deleted ones
+                for page_num in range(1, total_pages + 1):
+                    if page_num not in pages_to_delete:
+                        writer.add_page(reader.pages[page_num - 1])
+                        
+            elif user_order:
+                # Parse user order
+                try:
+                    if isinstance(user_order, str):
+                        user_order = list(map(int, user_order.strip('[]').split(',')))
+                    elif isinstance(user_order, list):
+                        user_order = list(map(int, user_order))
+                except (ValueError, TypeError):
+                    return Response({'error': 'Invalid user order format.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Check if the user's order is valid
+                if sorted(user_order) != list(range(1, total_pages + 1)):
+                    return Response({'error': 'Invalid page order. Please enter a valid order.'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Add pages in specified order
+                for page_number in user_order:
+                    writer.add_page(reader.pages[page_number - 1])
+            
+            # Save organized PDF
+            from io import BytesIO
+            buffer = BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
+            
+            organized_pdf = OrganizedPdf(user=request.user)
+            organized_pdf.organize_pdf.save('organized_output.pdf', ContentFile(buffer.getvalue()))
+            organized_pdf.save()
+            
+            # Get full URL
+            current_site = get_current_site(request)
+            base_url = f'http://{current_site.domain}'
+            file_url = f'{base_url}{organized_pdf.organize_pdf.url}'
+            
+            action = 'deleted' if delete_pages else 'organized'
+            response_data = {
+                'message': f'PDF pages {action} successfully.',
+                'organized_data': {
+                    'id': organized_pdf.id,
+                    'user': request.user.id,
+                    'created_at': organized_pdf.created_at.isoformat(),
+                    'organize_pdf': file_url
+                }
+            }
+            return Response(response_data)
+            
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
