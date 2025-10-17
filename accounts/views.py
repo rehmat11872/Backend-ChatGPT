@@ -1,30 +1,20 @@
-from django.shortcuts import render
 from accounts.models import User, Token
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import update_session_auth_hash
 from accounts.serializers import MyTokenObtainPairSerializer, UserSerializer, ChangePasswordSerializer, UserProfileSerializer
-from rest_framework import generics
-from django.conf import settings
 from project.settings import  GOOGLE_REDIRECT_URL, MICROSOFT_REDIRECT_URL, APPlE_REDIRECT_URL
-from rest_framework import serializers, status
-#google login
+from rest_framework import serializers
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
 from dj_rest_auth.registration.views import SocialLoginView
-#Microsoft login
 from allauth.socialaccount.providers.microsoft.views import MicrosoftGraphOAuth2Adapter
-#apple login
-from allauth.socialaccount.views import SignupView
 from allauth.socialaccount.providers.apple.views import AppleOAuth2Adapter
-# from allauth.socialaccount.providers.apple.client import AppleOAuth2Client
 from .apple_utils import AppleOAuth2Client
 from allauth.socialaccount.providers.oauth2.views import OAuth2Error
-#Mredirect
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import RedirectView
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -154,7 +144,6 @@ class ProfileAPiView(APIView):
 
 
 
-@extend_schema(exclude=True)
 class GoogleLoginView(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = GOOGLE_REDIRECT_URL
@@ -212,6 +201,9 @@ class AppleLoginView(SocialLoginView):
     @property
     def username(self):
         return self.adapter.user.email
+
+
+
 
 
 

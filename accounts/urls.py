@@ -14,4 +14,5 @@ urlpatterns = [
     path("dj-rest-auth/microsoft/login/", views.MicrosoftLoginView.as_view(), name="microsoft_login"),
     path("dj-rest-auth/apple/login/", views.AppleLoginView.as_view(), name="apple_login"),
 
+
 ]
