@@ -26,6 +26,10 @@ from django.conf import settings
 
 TEMP_PATH = settings.TEMP_PATH
 
+# Ensure temp directory exists
+if not os.path.exists(TEMP_PATH):
+    os.makedirs(TEMP_PATH, exist_ok=True)
+
 
 def protect_pdf(request, input_file, password, user):
     pdf_reader = PdfReader(input_file)
@@ -249,34 +253,31 @@ def convert_pdf_to_image(input_pdf):
         for chunk in input_pdf.chunks():
             temp_file.write(chunk)
 
-    with fitz.open(temp_file_path) as pdf_document:  # Use a context manager to ensure proper closing
-        image_paths = []
+    with fitz.open(temp_file_path) as pdf_document:
+        image_data_list = []
         for page_number in range(pdf_document.page_count):
             page = pdf_document[page_number]
-            image = page.get_pixmap()
-            image_data = image.tobytes()  # Extract raw image bytes
-            image_paths.append(image_data)  # Append raw bytes directly
+            # Get pixmap with higher resolution
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+            # Convert to PIL Image
+            pil_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+            # Convert to JPEG bytes
+            img_buffer = BytesIO()
+            pil_image.save(img_buffer, format='JPEG', quality=95)
+            image_data_list.append(img_buffer.getvalue())
 
-    os.remove(temp_file_path)  # Clean up the temporary file
-    return image_paths
+    os.remove(temp_file_path)
+    return image_data_list
 
 
 def create_zip_file(images, user):
     zip_buffer = BytesIO()
     with ZipFile(zip_buffer, 'w') as zip_file:
         for i, image_data in enumerate(images):
-            zip_file.writestr(f'page_{i + 1}.jpeg', image_data)
+            zip_file.writestr(f'page_{i + 1}.jpg', image_data)
 
-    # Ensure the directory exists before saving the zip file
-    zip_dir = os.path.join('pdf_images/zips/', str(user.id))
-    os.makedirs(zip_dir, exist_ok=True)
-
-    zip_name = f'pdf_images.zip'  # Simplified zip file name
-    zip_file_path = os.path.join(zip_dir, zip_name)
-    with open(zip_file_path, 'wb') as zip_file:
-        zip_file.write(zip_buffer.getvalue())
-
-    return zip_file_path, zip_buffer.getvalue()
+    zip_buffer.seek(0)
+    return None, zip_buffer.getvalue()
 
 
 

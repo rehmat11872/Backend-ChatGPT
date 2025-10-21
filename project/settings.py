@@ -25,12 +25,14 @@ ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*", cast=Csv())
 # ===========================================
 # --- Django Core Apps ---
 DJANGO_APPS = [
+    "jazzmin", 
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
 ]
 
 # --- Third-Party Apps ---
@@ -47,7 +49,7 @@ THIRD_PARTY_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "allauth.socialaccount.providers.microsoft",
-    "allauth.socialaccount.providers.apple",
+    "allauth.socialaccount.providers.apple",     
 ]
 
 # --- Local Apps ---
@@ -56,10 +58,119 @@ LOCAL_APPS = [
     "payment",
     "pdf",
     "legal_ai_agent",
+    "document_summarizer",
 ]
 
 # --- Combine All Apps ---
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+
+
+
+# ===========================================
+# Jazzmin Settings - Optimized Configuration
+# ===========================================
+
+JAZZMIN_SETTINGS = {
+    # Title & Branding
+    "site_title": "Legal AI Admin",
+    "site_header": "Legal AI Administration",
+    "site_brand": "Legal AI",
+    "welcome_sign": "Welcome to Legal AI Admin",
+    "copyright": "Legal AI Admin",
+    
+    # Search
+    "search_model": ["accounts.User", "auth.Group"],
+    
+    # Top Menu
+    "topmenu_links": [
+        {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"name": "Support", "url": "https://github.com/farridav/django-jazzmin/issues", "new_window": True},
+        {"model": "auth.User"},
+        {"app": "accounts"},
+    ],
+
+    # User Menu
+    "usermenu_links": [
+        {"name": "Support", "url": "https://github.com/farridav/django-jazzmin/issues", "new_window": True},
+        {"model": "auth.user"}
+    ],
+
+    # Side Menu
+    "show_sidebar": True,
+    "navigation_expanded": True,
+    "hide_apps": [],
+    "hide_models": [],
+    
+    # Icons
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        "accounts.User": "fas fa-user-circle",
+        "accounts.Subscription": "fas fa-credit-card",
+        "payment": "fas fa-money-bill",
+        "pdf": "fas fa-file-pdf",
+        "legal_ai_agent": "fas fa-robot",
+    },
+    
+    # Default Icons
+    "default_icon_parents": "fas fa-chevron-circle-right",
+    "default_icon_children": "fas fa-circle",
+    
+    # Related Modal
+    "related_modal_active": False,
+    
+    # Custom CSS/JS
+    "custom_css": "admin/css/custom.css",
+    "custom_js": None,
+    
+    # Show UI Builder
+    "show_ui_builder": False,
+    
+    # Changeform Format
+    "changeform_format": "horizontal_tabs",
+    "changeform_format_overrides": {
+        "auth.user": "collapsible",
+        "auth.group": "vertical_tabs",
+    },
+    
+    # Language Chooser
+    "language_chooser": False,
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": False,
+    "brand_small_text": False,
+    "brand_colour": "navbar-primary",
+    "accent": "accent-primary",
+    "navbar": "navbar-white navbar-light",
+    "no_navbar_border": False,
+    "navbar_fixed": False,
+    "layout_boxed": False,
+    "footer_fixed": False,
+    "sidebar_fixed": True,
+    "sidebar": "sidebar-dark-primary",
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_child_indent": False,
+    "sidebar_nav_compact_style": False,
+    "sidebar_nav_legacy_style": False,
+    "sidebar_nav_flat_style": False,
+    "theme": "default",
+    "dark_mode_theme": None,
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success"
+    },
+    "actions_sticky_top": False
+}
+
 
 # ===========================================
 # MIDDLEWARE
@@ -177,8 +288,18 @@ CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv())
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "https://ai-lawyer.neuracase.com",
+    " https://lawtabby-frontend.netlify.app",
 ]
-CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "DELETE"]
+
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]
+
 CORS_ALLOW_HEADERS = ["*"]
 
 CORS_ORIGIN_ALLOW_ALL = True
@@ -189,6 +310,7 @@ CORS_ORIGIN_WHITELIST = (
     # 'https://lawtabby.netlify.app',
     'https://ai-lawyer.neuracase.com',
     'https://lawtabby-new-design.netlify.app',
+    "https://lawtabby-frontend.netlify.app",
 )
 
 

@@ -8,6 +8,12 @@ from .models import OcrPdf, ProtectedPDF, MergedPDF, CompressedPDF, SplitPDF, PD
 class ProtectPDFRequestSerializer(serializers.Serializer):
     input_pdf = serializers.FileField(required=True)
     pdf_password = serializers.CharField(required=True)
+    allow_printing = serializers.BooleanField(default=True)
+    allow_copying = serializers.BooleanField(default=True)
+    allow_editing = serializers.BooleanField(default=False)
+    allow_comments = serializers.BooleanField(default=True)
+    allow_form_filling = serializers.BooleanField(default=True)
+    allow_document_assembly = serializers.BooleanField(default=False)
 
 
 class MergePDFRequestSerializer(serializers.Serializer):
@@ -28,8 +34,17 @@ class CompressPDFRequestSerializer(serializers.Serializer):
 
 class SplitPDFRequestSerializer(serializers.Serializer):
     input_pdf = serializers.FileField(required=True)
-    start_page = serializers.IntegerField(required=True, min_value=1)
-    end_page = serializers.IntegerField(required=True, min_value=1)
+    split_type = serializers.ChoiceField(
+        choices=[('range', 'Page Range'), ('pages', 'Individual Pages'), ('size', 'File Size')],
+        default='range'
+    )
+    # For range splitting
+    start_page = serializers.IntegerField(required=False, min_value=1)
+    end_page = serializers.IntegerField(required=False, min_value=1)
+    # For pages splitting
+    pages_per_split = serializers.IntegerField(required=False, min_value=1)
+    # For size splitting
+    max_size_mb = serializers.FloatField(required=False, min_value=0.1)
 
 
 class PDFToImageRequestSerializer(serializers.Serializer):
@@ -42,7 +57,8 @@ class WordToPdfRequestSerializer(serializers.Serializer):
 
 class OrganizePDFRequestSerializer(serializers.Serializer):
     input_pdf = serializers.FileField(required=True)
-    user_order = serializers.CharField(help_text='Order list as a string, e.g. [3,2,1]')
+    user_order = serializers.CharField(required=False, help_text='Order list as a string, e.g. [3,2,1]')
+    delete_pages = serializers.CharField(required=False, help_text='Pages to delete as a string, e.g. [2,4,5]')
 
 
 class UnlockPDFRequestSerializer(serializers.Serializer):
