@@ -486,7 +486,7 @@ def unlock_pdf(input_pdf, password, user):
         raise ValueError("Failed to unlock the PDF. Incorrect password.")
 
 
-def pdf_to_ocr(input_pdf, user):
+def pdf_to_ocr(input_pdf, user, language='eng'):
     """Process PDF with OCR and return searchable PDF with extracted text"""
     try:
         temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
@@ -500,7 +500,7 @@ def pdf_to_ocr(input_pdf, user):
         processor = PDFOCRProcessor()
         
         # Process PDF and get structured results
-        ocr_results = processor.process_pdf(temp_file_path, output_format='structured')
+        ocr_results = processor.process_pdf(temp_file_path, output_format='structured', language=language)
         
         # Extract text from results
         extracted_text = [page['text'] for page in ocr_results['extracted_text']]
@@ -509,7 +509,7 @@ def pdf_to_ocr(input_pdf, user):
         searchable_pdf_buffer = create_searchable_pdf(temp_file_path, extracted_text, ocr_results)
         
         # Save to database
-        pdf = OcrPdf(user=user)
+        pdf = OcrPdf(user=user, language=language)
         pdf.pdf.save('ocr_output.pdf', ContentFile(searchable_pdf_buffer.getvalue()))
         pdf.save()
         
@@ -537,7 +537,7 @@ def extract_text_from_pdf(pdf_path):
     return [page['text'] for page in results['extracted_text']]
 
 
-def perform_ocr_on_page(page):
+def perform_ocr_on_page(page, language='eng'):
     """Perform OCR on a single PDF page"""
     try:
         # Convert page to image
@@ -545,7 +545,7 @@ def perform_ocr_on_page(page):
         image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
         
         # Perform OCR
-        text = pytesseract.image_to_string(image, lang='eng')
+        text = pytesseract.image_to_string(image, lang=language)
         return text.strip()
     except Exception as e:
         print(f"OCR failed for page: {str(e)}")
@@ -644,12 +644,12 @@ def convert_pdf_page_to_image(pdf_document, page_num):
     return image
 
 
-def perform_ocr_on_image(image):
+def perform_ocr_on_image(image, language='eng'):
     """Perform OCR on image and return extracted text"""
     try:
         # Use pytesseract with better configuration
         custom_config = r'--oem 3 --psm 6'
-        text = pytesseract.image_to_string(image, lang='eng', config=custom_config)
+        text = pytesseract.image_to_string(image, lang=language, config=custom_config)
         return text.strip()
     except Exception as e:
         print(f"OCR failed: {str(e)}")

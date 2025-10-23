@@ -8,7 +8,7 @@ from drf_spectacular.utils import extend_schema, OpenApiExample
 from django.core.files.base import ContentFile
 from .models import UploadedDocument
 from .serializers import DocumentUploadSerializer, UploadedDocumentSerializer, TextExtractionSerializer, SummarizeRequestSerializer, SummaryResponseSerializer
-from .text_extractor import extract_text
+from .text_extractor import TextExtractor
 from .pipeline import generate_summary
 
 @extend_schema(tags=['Document Summarizer'])
@@ -137,7 +137,7 @@ class DocumentTextExtractionView(APIView):
             
             # Extract text from document
             with document.file_path.open('rb') as file_obj:
-                extracted_text = extract_text(file_obj, document.file_type)
+                extracted_text = TextExtractor.extract_text(file_obj, document.file_type)
             
             # Calculate word count and check if truncated
             word_count = len(extracted_text.split())
