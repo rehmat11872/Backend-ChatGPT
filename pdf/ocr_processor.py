@@ -27,13 +27,14 @@ class PDFOCRProcessor:
         if tesseract_path:
             pytesseract.pytesseract.tesseract_cmd = tesseract_path
     
-    def process_pdf(self, pdf_path, output_format='text'):
+    def process_pdf(self, pdf_path, output_format='text', language='eng'):
         """
         Process a PDF file and extract all text content.
         
         Args:
             pdf_path (str): Path to the PDF file
             output_format (str): Output format ('text', 'json', 'structured')
+            language (str): Language code for OCR (default: 'eng')
             
         Returns:
             dict: Processing results with extracted text and metadata
@@ -56,7 +57,7 @@ class PDFOCRProcessor:
                 results['total_pages'] = pdf_document.page_count
                 
                 for page_num in range(pdf_document.page_count):
-                    page_result = self._process_page(pdf_document, page_num)
+                    page_result = self._process_page(pdf_document, page_num, language)
                     results['extracted_text'].append(page_result)
                     
                     if page_result['has_existing_text']:
@@ -70,13 +71,14 @@ class PDFOCRProcessor:
         
         return self._format_output(results, output_format)
     
-    def _process_page(self, pdf_document, page_num):
+    def _process_page(self, pdf_document, page_num, language='eng'):
         """
         Process a single page of the PDF.
         
         Args:
             pdf_document: PyMuPDF document object
             page_num (int): Page number to process
+            language (str): Language code for OCR
             
         Returns:
             dict: Page processing results
@@ -99,7 +101,7 @@ class PDFOCRProcessor:
                 page_result['has_existing_text'] = True
             else:
                 # Perform OCR on the page
-                ocr_result = self._perform_ocr_on_page(page)
+                ocr_result = self._perform_ocr_on_page(page, language)
                 page_result['text'] = ocr_result['text']
                 page_result['ocr_performed'] = True
                 page_result['confidence'] = ocr_result['confidence']
@@ -109,12 +111,13 @@ class PDFOCRProcessor:
         
         return page_result
     
-    def _perform_ocr_on_page(self, page):
+    def _perform_ocr_on_page(self, page, language='eng'):
         """
         Perform OCR on a single PDF page.
         
         Args:
             page: PyMuPDF page object
+            language: Language code for OCR (default: 'eng')
             
         Returns:
             dict: OCR results with text and confidence
@@ -128,7 +131,7 @@ class PDFOCRProcessor:
             # Perform OCR with confidence data
             ocr_data = pytesseract.image_to_data(
                 image, 
-                lang='eng', 
+                lang=language, 
                 output_type=pytesseract.Output.DICT,
                 config='--oem 3 --psm 6'
             )
@@ -189,17 +192,18 @@ class PDFOCRProcessor:
         else:
             raise ValueError(f"Unsupported output format: {output_format}")
     
-    def extract_text_only(self, pdf_path):
+    def extract_text_only(self, pdf_path, language='eng'):
         """
         Quick method to extract only the text content.
         
         Args:
             pdf_path (str): Path to PDF file
+            language (str): Language code for OCR
             
         Returns:
             str: Extracted text content
         """
-        return self.process_pdf(pdf_path, output_format='text')
+        return self.process_pdf(pdf_path, output_format='text', language=language)
     
     def get_processing_summary(self, pdf_path):
         """
@@ -222,19 +226,20 @@ class PDFOCRProcessor:
         }
 
 
-def process_pdf_file(pdf_path, output_format='text'):
+def process_pdf_file(pdf_path, output_format='text', language='eng'):
     """
     Convenience function to process a PDF file.
     
     Args:
         pdf_path (str): Path to PDF file
         output_format (str): Output format ('text', 'json', 'structured')
+        language (str): Language code for OCR
         
     Returns:
         Various: Processing results
     """
     processor = PDFOCRProcessor()
-    return processor.process_pdf(pdf_path, output_format)
+    return processor.process_pdf(pdf_path, output_format, language)
 
 
 if __name__ == "__main__":

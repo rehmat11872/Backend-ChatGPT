@@ -79,6 +79,33 @@ class StampPdf(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 class OcrPdf(models.Model):
+    LANGUAGE_CHOICES = [
+        ('eng', 'English'),
+        ('spa', 'Spanish'),
+        ('fra', 'French'),
+        ('deu', 'German'),
+    ]
+    
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     pdf = models.FileField(upload_to='ocr_pdfs/')
+    language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='eng')
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class PDFFormatConversion(models.Model):
+    FORMAT_CHOICES = [
+        ('word', 'Word Document'),
+        ('excel', 'Excel Spreadsheet'),
+        ('powerpoint', 'PowerPoint'),
+        ('jpeg', 'JPEG Images'),
+        ('png', 'PNG Images'),
+        ('text', 'Plain Text')
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    output_format = models.CharField(max_length=20, choices=FORMAT_CHOICES)
+    converted_file = models.FileField(upload_to='pdf_conversions/')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f'PDF to {self.output_format} - {self.id}'

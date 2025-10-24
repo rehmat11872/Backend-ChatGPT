@@ -1,5 +1,4 @@
 import os
-import shutil
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,14 +6,12 @@ from rest_framework import status
 from PyPDF2 import PdfReader, PdfWriter
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.http import FileResponse, HttpResponse
-from django.conf import settings
-from .models import OcrPdf, ProtectedPDF, PDFImageConversion, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF,CompressedPDF, SplitPDF, UnlockPdf
-from django.shortcuts import get_object_or_404
+from django.http import FileResponse
+from django.contrib.auth.hashers import make_password
+from .models import OcrPdf, ProtectedPDF, WordToPdfConversion, WordToPdf, OrganizedPdf, MergedPDF, CompressedPDF, SplitPDF, UnlockPdf, PDFFormatConversion, StampPdf
 from django.core.files.base import ContentFile
-from django.contrib.sites.shortcuts import get_current_site
-from .utils import convert_other_to_pdf, protect_pdf, merge_pdf, compress_pdf, split_pdf, convert_pdf_to_image, create_zip_file, stamp_pdf_with_text,  organize_pdf, unlock_pdf, pdf_to_ocr, extract_text_from_pdf
-from .serializers import OcrPdfSerializer, ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, PDFImageConversionSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer, ProtectPDFRequestSerializer, MergePDFRequestSerializer, CompressPDFRequestSerializer, SplitPDFRequestSerializer, PDFToImageRequestSerializer, WordToPdfRequestSerializer, OrganizePDFRequestSerializer, UnlockPDFRequestSerializer, StampPDFRequestSerializer, OcrPDFRequestSerializer
+from .utils import convert_pdf_to_image, create_zip_file, stamp_pdf_with_text, pdf_to_ocr
+from .serializers import OcrPdfSerializer, ProtectedPDFSerializer, MergedPDFSerializer, CompressedPDFSerializer, SplitPDFSerializer, StampPdfSerializer, WordToPdfConversionSerializer, OrganizedPdfSerializer, UnlockPdfSerializer, ProtectPDFRequestSerializer, MergePDFRequestSerializer, CompressPDFRequestSerializer, SplitPDFRequestSerializer, WordToPdfRequestSerializer, OrganizePDFRequestSerializer, UnlockPDFRequestSerializer, StampPDFRequestSerializer, OcrPDFRequestSerializer, PDFToFormatRequestSerializer, PDFFormatConversionSerializer
 from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiExample
 from rest_framework import serializers as drf_serializers
 
@@ -80,7 +77,7 @@ class ProtectPDFView(APIView):
                 from accounts.models import User
                 user, created = User.objects.get_or_create(
                     email='test@example.com',
-                    defaults={'password': 'testpass123'}
+                    defaults={'password': make_password('testpass123')}
                 )
             
             # Protect PDF with permissions
@@ -119,9 +116,8 @@ class ProtectPDFView(APIView):
             protected_pdf.save()
             
             # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            file_url = f'{base_url}{protected_pdf.protected_file.url}'
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f'{protocol}://{request.get_host()}{protected_pdf.protected_file.url}'
             
             response_data = {
                 'message': 'PDF protection completed',
@@ -163,7 +159,7 @@ class ProtectedPDFDeleteView(generics.DestroyAPIView):
 
 @extend_schema(tags=['PDF Operations'])
 class MergePDFView(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser)
     serializer_class = MergePDFRequestSerializer
 
@@ -173,7 +169,7 @@ class MergePDFView(APIView):
             name='MergePDFResponse',
             fields={
                 'message': drf_serializers.CharField(),
-                'split_pdf': inline_serializer(
+                'merged_data': inline_serializer(
                     name='MergePDFData',
                     fields={
                         'id': drf_serializers.IntegerField(),
@@ -189,7 +185,7 @@ class MergePDFView(APIView):
                 'Merge PDF Example',
                 value={
                     'message': 'PDFs merged and saved successfully',
-                    'split_pdf': {
+                    'merged_data': {
                         'id': 1,
                         'user': 5,
                         'created_at': '2024-01-01T00:00:00Z',
@@ -206,22 +202,21 @@ class MergePDFView(APIView):
             return Response({'error': 'At least two PDFs are required for merging.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Create user if not authenticated
-            if request.user.is_authenticated:
-                user = request.user
-            else:
-                from accounts.models import User
-                user, created = User.objects.get_or_create(
-                    email='test@example.com',
-                    defaults={'password': 'testpass123'}
-                )
+            user = request.user
             
             # Merge PDFs
             writer = PdfWriter()
             for pdf_file in pdf_files:
-                reader = PdfReader(pdf_file)
-                for page in reader.pages:
-                    writer.add_page(page)
+                try:
+                    reader = PdfReader(pdf_file)
+                    # Handle encrypted PDFs
+                    if reader.is_encrypted:
+                        return Response({'error': f'PDF file "{pdf_file.name}" is encrypted. Please unlock it first.'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    for page in reader.pages:
+                        writer.add_page(page)
+                except Exception as pdf_error:
+                    return Response({'error': f'Error processing PDF "{pdf_file.name}": {str(pdf_error)}'}, status=status.HTTP_400_BAD_REQUEST)
             
             # Save merged PDF
             from io import BytesIO
@@ -237,13 +232,12 @@ class MergePDFView(APIView):
             merged_pdf.save()
             
             # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            file_url = f'{base_url}{merged_pdf.merged_file.url}'
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f'{protocol}://{request.get_host()}{merged_pdf.merged_file.url}'
             
             response_data = {
                 'message': 'PDFs merged and saved successfully',
-                'split_pdf': {
+                'merged_data': {
                     'id': merged_pdf.id,
                     'user': user.id,
                     'created_at': merged_pdf.created_at.isoformat(),
@@ -254,6 +248,22 @@ class MergePDFView(APIView):
 
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(tags=['PDF Operations'])
+class DownloadMergedPDFView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pdf_id, format=None):
+        try:
+            merged_pdf = MergedPDF.objects.get(id=pdf_id)
+            return FileResponse(
+                merged_pdf.merged_file.open('rb'),
+                as_attachment=True,
+                filename=f'merged_{merged_pdf.id}.pdf'
+            )
+        except MergedPDF.DoesNotExist:
+            return Response({'error': 'Merged PDF not found'}, status=404)
 
 
 @extend_schema(exclude=True)
@@ -315,7 +325,7 @@ class CompressPDFView(APIView):
                 from accounts.models import User
                 user, created = User.objects.get_or_create(
                     email='test@example.com',
-                    defaults={'password': 'testpass123'}
+                    defaults={'password': make_password('testpass123')}
                 )
             
             # Compress PDF (simple copy for now)
@@ -339,9 +349,8 @@ class CompressPDFView(APIView):
             compressed_pdf.save()
             
             # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            file_url = f'{base_url}{compressed_pdf.compressed_file.url}'
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f'{protocol}://{request.get_host()}{compressed_pdf.compressed_file.url}'
             
             response_data = {
                 'message': 'PDF compression completed',
@@ -358,12 +367,32 @@ class CompressPDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(tags=['PDF Operations'])
+class DownloadCompressedPDFView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pdf_id, format=None):
+        try:
+            compressed_pdf = CompressedPDF.objects.get(id=pdf_id)
+            return FileResponse(
+                compressed_pdf.compressed_file.open('rb'),
+                as_attachment=True,
+                filename=f'compressed_{compressed_pdf.id}.pdf'
+            )
+        except CompressedPDF.DoesNotExist:
+            return Response({'error': 'Compressed PDF not found'}, status=404)
+
+
 @extend_schema(exclude=True)
 class CompressPDFDeleteView(generics.DestroyAPIView):
     queryset = CompressedPDF.objects.all()
     serializer_class = CompressedPDFSerializer
     permission_classes = [IsAuthenticated]
 
+
+
+from io import BytesIO
+import json
 
 
 @extend_schema(tags=['PDF Operations'])
@@ -393,134 +422,252 @@ class SplitPDFView(APIView):
             OpenApiExample(
                 'Split PDF Example',
                 value={
-                    'message': 'PDF splitting completed.',
+                    'message': 'PDF splitting completed',
                     'split_pdf': {
                         'id': 1,
                         'user': 5,
                         'created_at': '2024-01-01T00:00:00Z',
-                        'split_pdf': 'http://localhost:8000/media/split/output.pdf'
+                        'split_pdf': 'http://localhost:8000/media/split/output_part1.pdf'
                     }
                 }
             )
         ]
     )
     def post(self, request, format=None):
-        input_pdf = request.FILES.get('input_pdf', None)
-        split_type = request.data.get('split_type', 'range')
-
+        input_pdf = request.FILES.get('input_pdf')
         if not input_pdf:
             return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        user = request.user
+        reader = PdfReader(input_pdf)
+
+        # --- Extract split options from frontend ---
+        split_mode = request.data.get('split_mode', 'range')
+        range_mode = request.data.get('range_mode', 'custom')
+        ranges_json = request.data.get('ranges', '[]')
+        extract_mode = request.data.get('extract_mode', 'all')
+        pages_to_extract = request.data.get('pages_to_extract', '')
+        max_file_size = request.data.get('max_file_size', '')
+        merge_ranges = request.data.get('merge_ranges', 'false') == 'true'
+        merge_extracted = request.data.get('merge_extracted', 'false') == 'true'
+
         try:
-            # Create user if not authenticated
-            if request.user.is_authenticated:
-                user = request.user
+            if isinstance(ranges_json, str):
+                # Clean up any extra quotes or characters
+                ranges_json = ranges_json.strip().rstrip("'\"")
+                ranges = json.loads(ranges_json)
             else:
-                from accounts.models import User
-                user, created = User.objects.get_or_create(
-                    email='test@example.com',
-                    defaults={'password': 'testpass123'}
-                )
-            
-            reader = PdfReader(input_pdf)
-            total_pages = len(reader.pages)
-            split_files = []
-            
-            if split_type == 'range':
-                start_page = int(request.data.get('start_page', 1)) - 1
-                end_page = int(request.data.get('end_page', total_pages)) - 1
-                
-                if start_page < 0 or end_page >= total_pages or start_page > end_page:
-                    return Response({'error': 'Invalid page range.'}, status=status.HTTP_400_BAD_REQUEST)
-                
-                writer = PdfWriter()
-                for i in range(start_page, end_page + 1):
-                    writer.add_page(reader.pages[i])
-                
-                split_files.append({
-                    'writer': writer,
-                    'filename': f'split_pages_{start_page+1}_to_{end_page+1}.pdf'
-                })
-                
-            elif split_type == 'pages':
-                pages_per_split = int(request.data.get('pages_per_split', 1))
-                
-                for i in range(0, total_pages, pages_per_split):
-                    writer = PdfWriter()
-                    end_idx = min(i + pages_per_split, total_pages)
-                    
-                    for j in range(i, end_idx):
-                        writer.add_page(reader.pages[j])
-                    
-                    split_files.append({
-                        'writer': writer,
-                        'filename': f'split_part_{i//pages_per_split + 1}_pages_{i+1}_to_{end_idx}.pdf'
-                    })
-                    
-            elif split_type == 'size':
-                max_size_mb = float(request.data.get('max_size_mb', 5.0))
-                max_size_bytes = max_size_mb * 1024 * 1024
-                
-                current_writer = PdfWriter()
-                current_size = 0
-                part_num = 1
-                start_page_num = 1
-                
-                for i, page in enumerate(reader.pages):
-                    current_writer.add_page(page)
-                    
-                    # Estimate size
-                    from io import BytesIO
-                    temp_buffer = BytesIO()
-                    current_writer.write(temp_buffer)
-                    current_size = temp_buffer.tell()
-                    temp_buffer.close()
-                    
-                    if current_size >= max_size_bytes or i == total_pages - 1:
-                        split_files.append({
-                            'writer': current_writer,
-                            'filename': f'split_part_{part_num}_pages_{start_page_num}_to_{i+1}.pdf'
-                        })
-                        current_writer = PdfWriter()
-                        part_num += 1
-                        start_page_num = i + 2
-            
-            # Save all split files
-            saved_files = []
-            for split_file in split_files:
-                from io import BytesIO
-                buffer = BytesIO()
-                split_file['writer'].write(buffer)
-                buffer.seek(0)
-                
-                split_pdf = SplitPDF(user=user)
-                split_pdf.split_pdf.save(
-                    split_file['filename'],
-                    ContentFile(buffer.getvalue())
-                )
-                split_pdf.save()
-                
-                # Get full URL
-                current_site = get_current_site(request)
-                base_url = f'http://{current_site.domain}'
-                file_url = f'{base_url}{split_pdf.split_pdf.url}'
-                
-                saved_files.append({
-                    'id': split_pdf.id,
-                    'filename': split_file['filename'],
-                    'url': file_url
-                })
+                ranges = ranges_json
+            print(f"DEBUG: Parsed ranges: {ranges}, type: {type(ranges)}")
+        except Exception as e:
+            print(f"DEBUG: JSON parsing failed: {e}, ranges_json: '{ranges_json}'")
+            return Response({'error': f'Invalid ranges JSON format: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        saved_files = []
+
+        try:
+            # --- Split by mode ---
+            if split_mode == "range":
+                saved_files = self._split_by_range(reader, user, ranges, range_mode, merge_ranges, request)
+            elif split_mode == "pages":
+                saved_files = self._split_by_pages(reader, user, extract_mode, pages_to_extract, merge_extracted, request)
+            elif split_mode == "size":
+                saved_files = self._split_by_size(reader, user, max_file_size, request)
+            else:
+                return Response({'error': 'Invalid split mode'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Return format expected by frontend
+            first_file = saved_files[0] if saved_files else None
+            if not first_file:
+                return Response({'error': 'No files created'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             response_data = {
-                'message': f'PDF splitting completed. Created {len(saved_files)} files.',
-                'split_type': split_type,
-                'total_files': len(saved_files),
-                'files': saved_files
+                'message': 'PDF splitting completed',
+                'split_pdf': {
+                    'id': first_file['id'],
+                    'user': first_file['user'],
+                    'created_at': first_file['created_at'],
+                    'split_pdf': first_file['split_pdf']
+                }
             }
-            return Response(response_data)
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # ----------------------------
+    # Split Helper Methods
+    # ----------------------------
+    def _split_by_range(self, reader, user, ranges, range_mode, merge_ranges, request):
+        files = []
+        protocol = 'https' if request.is_secure() else 'http'
+        
+        print(f"DEBUG _split_by_range: ranges={ranges}, range_mode={range_mode}, merge_ranges={merge_ranges}")
+
+        if not ranges:
+            print(f"DEBUG: No ranges provided, returning empty list")
+            return []
+
+        if merge_ranges:
+            # Merge all ranges into a single file
+            writer = PdfWriter()
+            for r in ranges:
+                start, end = int(r.get('from', 1)), int(r.get('to', len(reader.pages)))
+                for i in range(start - 1, min(end, len(reader.pages))):
+                    writer.add_page(reader.pages[i])
+            buffer = BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
+            split_pdf = SplitPDF(user=user, start_page=1, end_page=len(reader.pages))
+            split_pdf.split_pdf.save(f'split_merged.pdf', ContentFile(buffer.getvalue()))
+            split_pdf.save()
+            files.append({
+                'id': split_pdf.id,
+                'user': user.id,
+                'created_at': split_pdf.created_at.isoformat(),
+                'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
+            })
+            return files
+
+        # Create individual files per range
+        for idx, r in enumerate(ranges, start=1):
+            start, end = int(r.get('from', 1)), int(r.get('to', len(reader.pages)))
+            writer = PdfWriter()
+            for i in range(start - 1, min(end, len(reader.pages))):
+                writer.add_page(reader.pages[i])
+            buffer = BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
+            split_pdf = SplitPDF(user=user, start_page=start, end_page=end)
+            split_pdf.split_pdf.save(f'split_part_{idx}.pdf', ContentFile(buffer.getvalue()))
+            split_pdf.save()
+            files.append({
+                'id': split_pdf.id,
+                'user': user.id,
+                'created_at': split_pdf.created_at.isoformat(),
+                'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
+            })
+        return files
+
+    def _split_by_pages(self, reader, user, extract_mode, pages_to_extract, merge_extracted, request):
+        files = []
+        protocol = 'https' if request.is_secure() else 'http'
+        total_pages = len(reader.pages)
+
+        if extract_mode == "all":
+            for i in range(total_pages):
+                writer = PdfWriter()
+                writer.add_page(reader.pages[i])
+                buffer = BytesIO()
+                writer.write(buffer)
+                buffer.seek(0)
+                split_pdf = SplitPDF(user=user, start_page=i+1, end_page=i+1)
+                split_pdf.split_pdf.save(f'page_{i + 1}.pdf', ContentFile(buffer.getvalue()))
+                split_pdf.save()
+                files.append({
+                    'id': split_pdf.id,
+                    'user': user.id,
+                    'created_at': split_pdf.created_at.isoformat(),
+                    'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
+                })
+            return files
+
+        # If specific pages provided (e.g., "1,3-5,8")
+        pages = self._parse_pages(pages_to_extract, total_pages)
+        if merge_extracted:
+            writer = PdfWriter()
+            for p in pages:
+                writer.add_page(reader.pages[p - 1])
+            buffer = BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
+            split_pdf = SplitPDF(user=user, start_page=min(pages), end_page=max(pages))
+            split_pdf.split_pdf.save('extracted_pages.pdf', ContentFile(buffer.getvalue()))
+            split_pdf.save()
+            return [{
+                'id': split_pdf.id,
+                'user': user.id,
+                'created_at': split_pdf.created_at.isoformat(),
+                'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
+            }]
+        else:
+            for p in pages:
+                writer = PdfWriter()
+                writer.add_page(reader.pages[p - 1])
+                buffer = BytesIO()
+                writer.write(buffer)
+                buffer.seek(0)
+                split_pdf = SplitPDF(user=user, start_page=p, end_page=p)
+                split_pdf.split_pdf.save(f'page_{p}.pdf', ContentFile(buffer.getvalue()))
+                split_pdf.save()
+                files.append({
+                    'id': split_pdf.id,
+                    'user': user.id,
+                    'created_at': split_pdf.created_at.isoformat(),
+                    'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
+                })
+            return files
+
+    def _split_by_size(self, reader, user, max_file_size, request):
+        files = []
+        protocol = 'https' if request.is_secure() else 'http'
+        try:
+            max_size_kb = float(max_file_size or 500)
+        except ValueError:
+            max_size_kb = 500
+
+        writer = PdfWriter()
+        part = 1
+        buffer = BytesIO()
+
+        for page in reader.pages:
+            writer.add_page(page)
+            temp_buffer = BytesIO()
+            writer.write(temp_buffer)
+            if temp_buffer.tell() / 1024 > max_size_kb:
+                # save current writer and start new
+                writer.remove_page(-1)
+                buffer = BytesIO()
+                writer.write(buffer)
+                buffer.seek(0)
+                split_pdf = SplitPDF(user=user, start_page=1, end_page=1)  # Will be updated with actual pages
+                split_pdf.split_pdf.save(f'size_part_{part}.pdf', ContentFile(buffer.getvalue()))
+                split_pdf.save()
+                files.append({
+                    'id': split_pdf.id,
+                    'user': user.id,
+                    'created_at': split_pdf.created_at.isoformat(),
+                    'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
+                })
+                part += 1
+                writer = PdfWriter()
+                writer.add_page(page)
+        # Save the last one
+        buffer = BytesIO()
+        writer.write(buffer)
+        buffer.seek(0)
+        split_pdf = SplitPDF(user=user, start_page=1, end_page=1)  # Will be updated with actual pages
+        split_pdf.split_pdf.save(f'size_part_{part}.pdf', ContentFile(buffer.getvalue()))
+        split_pdf.save()
+        files.append({
+            'id': split_pdf.id,
+            'user': user.id,
+            'created_at': split_pdf.created_at.isoformat(),
+            'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
+        })
+        return files
+
+    def _parse_pages(self, pages_str, total_pages):
+        pages = set()
+        for part in pages_str.split(','):
+            if '-' in part:
+                start, end = map(int, part.split('-'))
+                pages.update(range(start, min(end + 1, total_pages + 1)))
+            else:
+                p = int(part.strip())
+                if 1 <= p <= total_pages:
+                    pages.add(p)
+        return sorted(pages)
 
 
 @extend_schema(exclude=True)
@@ -530,88 +677,6 @@ class SplitPDFDeleteView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
 
 
-@extend_schema(tags=['PDF Operations'])
-class PDFToImageConversionView(APIView):
-    permission_classes = [IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser)
-    serializer_class = PDFToImageRequestSerializer
-
-    @extend_schema(
-        request=PDFToImageRequestSerializer,
-        responses=inline_serializer(
-            name='PDFToImageResponse',
-            fields={
-                'message': drf_serializers.CharField(),
-                'conversion_data': inline_serializer(
-                    name='PDFToImageData',
-                    fields={
-                        'id': drf_serializers.IntegerField(),
-                        'user': drf_serializers.IntegerField(),
-                        'created_at': drf_serializers.DateTimeField(),
-                        'zip_file': drf_serializers.URLField(),
-                    }
-                ),
-            }
-        ),
-        examples=[
-            OpenApiExample(
-                'PDF to Image Example',
-                value={
-                    'message': 'PDF to image conversion completed.',
-                    'conversion_data': {
-                        'id': 1,
-                        'user': 5,
-                        'created_at': '2024-01-01T00:00:00Z',
-                        'zip_file': 'http://localhost:8000/media/pdf_images/pages.zip'
-                    }
-                }
-            )
-        ]
-    )
-    def post(self, request, format=None):
-        input_pdf = request.FILES.get('input_pdf', None)
-        output_format = request.data.get('output_format', 'JPG')
-
-        if not input_pdf:
-            return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            user = request.user
-            
-            # Convert PDF to images
-            images = convert_pdf_to_image(input_pdf)
-            
-            # Create ZIP file with images
-            zip_file_path, zip_content = create_zip_file(images, user)
-            
-            # Save to database
-            conversion_instance = PDFImageConversion(user=user)
-            conversion_instance.zip_file.save('pdf_images.zip', ContentFile(zip_content))
-            conversion_instance.save()
-            
-            # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            zip_url = f'{base_url}{conversion_instance.zip_file.url}'
-            
-            serializer = PDFImageConversionSerializer(conversion_instance, context={'request': request})
-            
-            response_data = {
-                'message': f'PDF to {output_format} conversion completed.',
-                'conversion_data': serializer.data
-            }
-            return Response(response_data)
-
-        except Exception as e:
-            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-@extend_schema(exclude=True)
-class PDFToImageDeleteView(generics.DestroyAPIView):
-    queryset = PDFImageConversion.objects.all()
-    serializer_class = PDFImageConversionSerializer
-    permission_classes = [IsAuthenticated]
 
 
 
@@ -714,37 +779,26 @@ class WordToPdfConversionView(APIView):
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # try:
-            # user = request.user
-            # conversion_instance = WordToPdfConversion(user=user)
-            # conversion_instance.save()
-
-            # converted_files = convert_other_to_pdf(input_files)
-            # print(converted_files, 'converted_files')
-
-            # for converted_file in converted_files:
-            #     word_to_pdf_instance = WordToPdf(word_to_pdf=converted_file)
-            #     word_to_pdf_instance.save()
-            #     conversion_instance.word_to_pdfs.add(word_to_pdf_instance)
-
-            # conversion_instance.save()
-
-            # serializer = WordToPdfConversionSerializer(conversion_instance, context={'request': request})
-        #     return Response({'message': 'Word to PDF conversion completed.', 'conversion_data': serializer.data})
-        # except Exception as e:
-        #     return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@extend_schema(exclude=True)
-class WordToPdfConversionDeleteView(generics.DestroyAPIView):
-    queryset = WordToPdfConversion.objects.all()
-    serializer_class = WordToPdfConversionSerializer
-    permission_classes = [IsAuthenticated]
 
-    def perform_destroy(self, instance):
-        # Perform any additional logic here if needed
-        instance.word_to_pdfs.all().delete()  # Delete related WordToPdf instances
-        instance.delete()
+
+
+
+@extend_schema(tags=['PDF Operations'])
+class DownloadSplitPDFView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pdf_id, format=None):
+        try:
+            split_pdf = SplitPDF.objects.get(id=pdf_id)
+            return FileResponse(
+                split_pdf.split_pdf.open('rb'),
+                as_attachment=True,
+                filename=f'split_{split_pdf.id}.pdf'
+            )
+        except SplitPDF.DoesNotExist:
+            return Response({'error': 'Split PDF not found'}, status=404)
 
 
 @extend_schema(tags=['PDF Operations'])
@@ -845,9 +899,8 @@ class OrganizePDFView(APIView):
             organized_pdf.save()
             
             # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            file_url = f'{base_url}{organized_pdf.organize_pdf.url}'
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f'{protocol}://{request.get_host()}{organized_pdf.organize_pdf.url}'
             
             action = 'deleted' if delete_pages else 'organized'
             response_data = {
@@ -864,6 +917,22 @@ class OrganizePDFView(APIView):
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
+@extend_schema(tags=['PDF Operations'])
+class DownloadOrganizedPDFView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pdf_id, format=None):
+        try:
+            organized_pdf = OrganizedPdf.objects.get(id=pdf_id)
+            return FileResponse(
+                organized_pdf.organize_pdf.open('rb'),
+                as_attachment=True,
+                filename=f'organized_{organized_pdf.id}.pdf'
+            )
+        except OrganizedPdf.DoesNotExist:
+            return Response({'error': 'Organized PDF not found'}, status=404)
 
 
 @extend_schema(tags=['PDF Operations'])
@@ -922,7 +991,7 @@ class UnlockPDFView(APIView):
                 from accounts.models import User
                 user, created = User.objects.get_or_create(
                     email='test@example.com',
-                    defaults={'password': 'testpass123'}
+                    defaults={'password': make_password('testpass123')}
                 )
             
             # Unlock PDF
@@ -946,9 +1015,8 @@ class UnlockPDFView(APIView):
                 unlocked_pdf.save()
                 
                 # Get full URL
-                current_site = get_current_site(request)
-                base_url = f'http://{current_site.domain}'
-                file_url = f'{base_url}{unlocked_pdf.unlock_pdf.url}'
+                protocol = 'https' if request.is_secure() else 'http'
+                file_url = f'{protocol}://{request.get_host()}{unlocked_pdf.unlock_pdf.url}'
                 
                 response_data = {
                     'message': 'PDF unlocked successfully.',
@@ -966,6 +1034,22 @@ class UnlockPDFView(APIView):
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
+
+@extend_schema(tags=['PDF Operations'])
+class DownloadUnlockedPDFView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pdf_id, format=None):
+        try:
+            unlocked_pdf = UnlockPdf.objects.get(id=pdf_id)
+            return FileResponse(
+                unlocked_pdf.unlock_pdf.open('rb'),
+                as_attachment=True,
+                filename=f'unlocked_{unlocked_pdf.id}.pdf'
+            )
+        except UnlockPdf.DoesNotExist:
+            return Response({'error': 'Unlocked PDF not found'}, status=404)
 
 
 @extend_schema(exclude=True)
@@ -1052,7 +1136,7 @@ class SignPDFView(APIView):
                 from accounts.models import User
                 user, created = User.objects.get_or_create(
                     email='test@example.com',
-                    defaults={'password': 'testpass123'}
+                    defaults={'password': make_password('testpass123')}
                 )
             
             # Sign PDF (simple copy for now)
@@ -1078,9 +1162,8 @@ class SignPDFView(APIView):
             signed_pdf.save()
             
             # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            file_url = f'{base_url}{signed_pdf.pdf.url}'
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f'{protocol}://{request.get_host()}{signed_pdf.pdf.url}'
             
             response_data = {
                 'message': 'PDF signing completed.',
@@ -1095,6 +1178,22 @@ class SignPDFView(APIView):
 
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(tags=['PDF Operations'])
+class DownloadOcrPDFView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pdf_id, format=None):
+        try:
+            ocr_pdf = OcrPdf.objects.get(id=pdf_id)
+            return FileResponse(
+                ocr_pdf.pdf.open('rb'),
+                as_attachment=True,
+                filename=f'ocr_{ocr_pdf.id}.pdf'
+            )
+        except OcrPdf.DoesNotExist:
+            return Response({'error': 'OCR PDF not found'}, status=404)
 
 
 @extend_schema(tags=['PDF Operations'])
@@ -1114,6 +1213,7 @@ class OcrPDFView(APIView):
                     fields={
                         'id': drf_serializers.IntegerField(),
                         'user': drf_serializers.IntegerField(),
+                        'language': drf_serializers.CharField(),
                         'created_at': drf_serializers.DateTimeField(),
                         'pdf': drf_serializers.URLField(),
                     }
@@ -1124,23 +1224,40 @@ class OcrPDFView(APIView):
         ),
         examples=[
             OpenApiExample(
-                'OCR PDF Example',
+                'OCR PDF Example - English',
                 value={
                     'message': 'OCR processing completed successfully.',
                     'data': {
                         'id': 1,
                         'user': 5,
+                        'language': 'eng',
                         'created_at': '2024-01-01T00:00:00Z',
                         'pdf': 'http://localhost:8000/media/ocr/output.pdf'
                     },
                     'extracted_text_preview': 'Sample extracted text from the PDF...',
                     'total_pages_processed': 5
                 }
+            ),
+            OpenApiExample(
+                'OCR PDF Example - Spanish',
+                value={
+                    'message': 'OCR processing completed successfully.',
+                    'data': {
+                        'id': 2,
+                        'user': 5,
+                        'language': 'spa',
+                        'created_at': '2024-01-01T00:00:00Z',
+                        'pdf': 'http://localhost:8000/media/ocr/output.pdf'
+                    },
+                    'extracted_text_preview': 'Texto extraído de muestra del PDF...',
+                    'total_pages_processed': 3
+                }
             )
         ]
     )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
+        language = request.data.get('language', 'eng')
 
         if not input_pdf:
             return Response({'error': 'No input PDF file.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1149,16 +1266,15 @@ class OcrPDFView(APIView):
             user = request.user
             
             # Process PDF with OCR and save to database
-            ocr_pdf, extracted_text = pdf_to_ocr(input_pdf, user)
+            ocr_pdf, extracted_text = pdf_to_ocr(input_pdf, user, language)
             
             # Create text preview
             full_text = '\n'.join(extracted_text)
             text_preview = full_text[:500] + '...' if len(full_text) > 500 else full_text
             
             # Get full URL
-            current_site = get_current_site(request)
-            base_url = f'http://{current_site.domain}'
-            pdf_url = f'{base_url}{ocr_pdf.pdf.url}'
+            protocol = 'https' if request.is_secure() else 'http'
+            pdf_url = f'{protocol}://{request.get_host()}{ocr_pdf.pdf.url}'
             
             serializer = OcrPdfSerializer(ocr_pdf, context={'request': request})
             
@@ -1183,7 +1299,13 @@ class ExtractTextView(APIView):
     @extend_schema(
         request=inline_serializer(
             name='ExtractTextRequest',
-            fields={'input_pdf': drf_serializers.FileField()}
+            fields={
+                'input_pdf': drf_serializers.FileField(),
+                'language': drf_serializers.ChoiceField(
+                    choices=[('eng', 'English'), ('spa', 'Spanish'), ('fra', 'French'), ('deu', 'German')],
+                    default='eng'
+                )
+            }
         ),
         responses=inline_serializer(
             name='ExtractTextResponse',
@@ -1197,6 +1319,7 @@ class ExtractTextView(APIView):
     )
     def post(self, request, format=None):
         input_pdf = request.FILES.get('input_pdf', None)
+        language = request.data.get('language', 'eng')
 
         if not input_pdf:
             return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1213,10 +1336,10 @@ class ExtractTextView(APIView):
             
             # Extract text using OCR processor
             processor = PDFOCRProcessor()
-            full_text = processor.extract_text_only(temp_path)
+            full_text = processor.extract_text_only(temp_path, language)
             
             # Get detailed results for metadata
-            ocr_results = processor.process_pdf(temp_path, output_format='structured')
+            ocr_results = processor.process_pdf(temp_path, output_format='structured', language=language)
             
             # Clean up
             os.remove(temp_path)
@@ -1232,3 +1355,436 @@ class ExtractTextView(APIView):
             
         except Exception as e:
             return Response({'error': f'Text extraction failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@extend_schema(tags=['PDF Operations'])
+class PDFToFormatView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = PDFToFormatRequestSerializer
+
+    @extend_schema(
+        request=PDFToFormatRequestSerializer,
+        responses=inline_serializer(
+            name='PDFToFormatResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'conversion_data': inline_serializer(
+                    name='PDFToFormatData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'output_format': drf_serializers.CharField(),
+                        'converted_file': drf_serializers.URLField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                    }
+                ),
+            }
+        )
+    )
+    def post(self, request, format=None):
+        input_pdf = request.FILES.get('input_pdf')
+        output_format = request.data.get('output_format')
+
+        if not input_pdf:
+            return Response({'error': 'No input PDF file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not output_format:
+            return Response({'error': 'Output format is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = request.user
+            
+            # Convert based on format
+            if output_format == 'text':
+                converted_content = self._convert_to_text(input_pdf)
+                file_extension = 'txt'
+            elif output_format in ['jpeg', 'png']:
+                converted_content = self._convert_to_images(input_pdf, output_format)
+                file_extension = 'zip'
+            elif output_format == 'word':
+                converted_content = self._convert_to_word(input_pdf)
+                file_extension = 'docx'
+            elif output_format == 'excel':
+                converted_content = self._convert_to_excel(input_pdf)
+                file_extension = 'xlsx'
+            elif output_format == 'powerpoint':
+                converted_content = self._convert_to_powerpoint(input_pdf)
+                file_extension = 'pptx'
+            else:
+                return Response({'error': 'Unsupported output format.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Save conversion
+            conversion = PDFFormatConversion(user=user, output_format=output_format)
+            conversion.converted_file.save(
+                f'converted_{output_format}.{file_extension}',
+                ContentFile(converted_content)
+            )
+            conversion.save()
+            
+            # Get full URL
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f'{protocol}://{request.get_host()}{conversion.converted_file.url}'
+            
+            response_data = {
+                'message': f'PDF to {output_format} conversion completed.',
+                'conversion_data': {
+                    'id': conversion.id,
+                    'user': user.id,
+                    'output_format': output_format,
+                    'converted_file': file_url,
+                    'created_at': conversion.created_at.isoformat()
+                }
+            }
+            return Response(response_data)
+            
+        except Exception as e:
+            return Response({'error': f'Conversion failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _convert_to_text(self, pdf_file):
+        from PyPDF2 import PdfReader
+        reader = PdfReader(pdf_file)
+        text = ''
+        for page in reader.pages:
+            text += page.extract_text() + '\n'
+        return text.encode('utf-8')
+    
+    def _convert_to_images(self, pdf_file, format_type):
+        # Reuse existing PDF to image logic
+        from .utils import convert_pdf_to_image, create_zip_file
+        images = convert_pdf_to_image(pdf_file)
+        _, zip_content = create_zip_file(images, None)
+        return zip_content
+    
+    def _convert_to_word(self, pdf_file):
+        # Basic text extraction to DOCX
+        from docx import Document
+        from io import BytesIO
+        
+        doc = Document()
+        text = self._convert_to_text(pdf_file).decode('utf-8')
+        doc.add_paragraph(text)
+        
+        buffer = BytesIO()
+        doc.save(buffer)
+        return buffer.getvalue()
+    
+    def _convert_to_excel(self, pdf_file):
+        # Basic text to Excel
+        import pandas as pd
+        from io import BytesIO
+        
+        text = self._convert_to_text(pdf_file).decode('utf-8')
+        df = pd.DataFrame({'Content': [text]})
+        
+        buffer = BytesIO()
+        df.to_excel(buffer, index=False)
+        return buffer.getvalue()
+    
+    def _convert_to_powerpoint(self, pdf_file):
+        # Basic text to PowerPoint
+        from pptx import Presentation
+        from io import BytesIO
+        
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[1])
+        title = slide.shapes.title
+        content = slide.placeholders[1]
+        
+        title.text = 'PDF Content'
+        text = self._convert_to_text(pdf_file).decode('utf-8')
+        content.text = text[:1000]  # Limit text length
+        
+        buffer = BytesIO()
+        prs.save(buffer)
+        return buffer.getvalue()
+
+
+@extend_schema(tags=['PDF Operations'])
+class FormatToPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+    serializer_class = WordToPdfRequestSerializer
+
+    @extend_schema(
+        request=WordToPdfRequestSerializer,
+        responses=inline_serializer(
+            name='FormatToPDFResponse',
+            fields={
+                'message': drf_serializers.CharField(),
+                'conversion_data': inline_serializer(
+                    name='FormatToPDFData',
+                    fields={
+                        'id': drf_serializers.IntegerField(),
+                        'user': drf_serializers.IntegerField(),
+                        'input_format': drf_serializers.CharField(),
+                        'converted_pdf': drf_serializers.URLField(),
+                        'created_at': drf_serializers.DateTimeField(),
+                    }
+                ),
+            }
+        )
+    )
+    def post(self, request, format=None):
+        input_file = request.FILES.get('input_file')
+        input_format = request.data.get('input_format')
+
+        if not input_file:
+            return Response({'error': 'No input file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not input_format:
+            file_ext = input_file.name.split('.')[-1].lower()
+            input_format = file_ext
+
+        try:
+            user = request.user
+            
+            if input_format in ['doc', 'docx']:
+                pdf_content = self._convert_word_to_pdf(input_file)
+            elif input_format in ['xls', 'xlsx']:
+                pdf_content = self._convert_excel_to_pdf(input_file)
+            elif input_format == 'csv':
+                pdf_content = self._convert_csv_to_pdf(input_file)
+            elif input_format in ['ppt', 'pptx']:
+                pdf_content = self._convert_powerpoint_to_pdf(input_file)
+            elif input_format == 'txt':
+                pdf_content = self._convert_text_to_pdf(input_file)
+            elif input_format == 'rtf':
+                pdf_content = self._convert_rtf_to_pdf(input_file)
+            elif input_format in ['jpg', 'jpeg', 'png', 'gif', 'bmp']:
+                pdf_content = self._convert_image_to_pdf(input_file)
+            else:
+                return Response({'error': f'Unsupported input format: {input_format}'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Use existing WordToPdfConversion model
+            conversion_instance = WordToPdfConversion(user=user)
+            conversion_instance.save()
+            
+            word_to_pdf_instance = WordToPdf()
+            word_to_pdf_instance.word_to_pdf.save(
+                f'{input_format}_to_pdf.pdf',
+                ContentFile(pdf_content)
+            )
+            word_to_pdf_instance.save()
+            
+            conversion_instance.word_to_pdfs.add(word_to_pdf_instance)
+            conversion_instance.save()
+            protocol = 'https' if request.is_secure() else 'http'
+            file_url = f'{protocol}://{request.get_host()}{word_to_pdf_instance.word_to_pdf.url}'
+            
+            response_data = {
+                'message': f'{input_format.upper()} to PDF conversion completed.',
+                'conversion_data': {
+                    'id': conversion_instance.id,
+                    'user': user.id,
+                    'input_format': input_format,
+                    'converted_pdf': file_url,
+                    'created_at': conversion_instance.created_at.isoformat()
+                }
+            }
+            return Response(response_data)
+            
+        except Exception as e:
+            return Response({'error': f'Conversion failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _convert_word_to_pdf(self, file):
+        from docx import Document
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        doc = Document(file)
+        text_content = '\n'.join([p.text for p in doc.paragraphs])
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        y = height - 50
+        for line in text_content.split('\n'):
+            if y < 50:
+                p.showPage()
+                y = height - 50
+            p.drawString(50, y, line[:80])
+            y -= 20
+        
+        p.save()
+        return buffer.getvalue()
+    
+    def _convert_excel_to_pdf(self, file):
+        import pandas as pd
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        df = pd.read_excel(file)
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        y = height - 50
+        p.drawString(50, y, f'Excel Data ({len(df)} rows, {len(df.columns)} columns)')
+        y -= 30
+        
+        headers = ' | '.join(df.columns[:5])
+        p.drawString(50, y, headers)
+        y -= 20
+        
+        for idx, row in df.head(20).iterrows():
+            if y < 50:
+                p.showPage()
+                y = height - 50
+            row_text = ' | '.join([str(val)[:15] for val in row.values[:5]])
+            p.drawString(50, y, row_text)
+            y -= 15
+        
+        p.save()
+        return buffer.getvalue()
+    
+    def _convert_csv_to_pdf(self, file):
+        import pandas as pd
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        df = pd.read_csv(file)
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        y = height - 50
+        p.drawString(50, y, f'CSV Data ({len(df)} rows, {len(df.columns)} columns)')
+        y -= 30
+        
+        headers = ' | '.join(df.columns[:5])
+        p.drawString(50, y, headers)
+        y -= 20
+        
+        for idx, row in df.head(20).iterrows():
+            if y < 50:
+                p.showPage()
+                y = height - 50
+            row_text = ' | '.join([str(val)[:15] for val in row.values[:5]])
+            p.drawString(50, y, row_text)
+            y -= 15
+        
+        p.save()
+        return buffer.getvalue()
+    
+    def _convert_powerpoint_to_pdf(self, file):
+        from pptx import Presentation
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        prs = Presentation(file)
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        for slide_num, slide in enumerate(prs.slides, 1):
+            y = height - 50
+            p.drawString(50, y, f'Slide {slide_num}')
+            y -= 30
+            
+            for shape in slide.shapes:
+                if hasattr(shape, 'text') and shape.text:
+                    for line in shape.text.split('\n'):
+                        if y < 50:
+                            p.showPage()
+                            y = height - 50
+                        p.drawString(70, y, line[:70])
+                        y -= 15
+            
+            if slide_num < len(prs.slides):
+                p.showPage()
+        
+        p.save()
+        return buffer.getvalue()
+    
+    def _convert_text_to_pdf(self, file):
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        text_content = file.read().decode('utf-8')
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        y = height - 50
+        for line in text_content.split('\n'):
+            if y < 50:
+                p.showPage()
+                y = height - 50
+            p.drawString(50, y, line[:80])
+            y -= 20
+        
+        p.save()
+        return buffer.getvalue()
+    
+    def _convert_rtf_to_pdf(self, file):
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from io import BytesIO
+        
+        try:
+            content = file.read().decode('utf-8')
+        except:
+            content = str(file.read())
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        y = height - 50
+        for line in content.split('\n'):
+            if y < 50:
+                p.showPage()
+                y = height - 50
+            p.drawString(50, y, line[:80])
+            y -= 20
+        
+        p.save()
+        return buffer.getvalue()
+    
+    def _convert_image_to_pdf(self, file):
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.utils import ImageReader
+        from io import BytesIO
+        from PIL import Image
+        
+        image = Image.open(file)
+        
+        buffer = BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        img_width, img_height = image.size
+        aspect_ratio = img_height / img_width
+        
+        max_width = width - 100
+        max_height = height - 100
+        
+        if img_width > max_width:
+            img_width = max_width
+            img_height = img_width * aspect_ratio
+        
+        if img_height > max_height:
+            img_height = max_height
+            img_width = img_height / aspect_ratio
+        
+        x = (width - img_width) / 2
+        y = (height - img_height) / 2
+        
+        file.seek(0)
+        img_reader = ImageReader(file)
+        p.drawImage(img_reader, x, y, width=img_width, height=img_height)
+        
+        p.save()
+        return buffer.getvalue()
