@@ -495,23 +495,19 @@ def pdf_to_ocr(input_pdf, user, language='eng'):
             for chunk in input_pdf.chunks():
                 temp_file.write(chunk)
         
-        # Use the OCR processor
-        from .ocr_processor import PDFOCRProcessor
-        processor = PDFOCRProcessor()
-        
-        # Process PDF and get structured results
-        ocr_results = processor.process_pdf(temp_file_path, output_format='structured', language=language)
-        
-        # Extract text from results
-        extracted_text = [page['text'] for page in ocr_results['extracted_text']]
-        
-        # Create searchable PDF with extracted text
-        searchable_pdf_buffer = create_searchable_pdf(temp_file_path, extracted_text, ocr_results)
+        # Create searchable PDF with invisible text layer
+        searchable_pdf_buffer = create_searchable_pdf_with_ocr(temp_file_path, language)
         
         # Save to database
         pdf = OcrPdf(user=user, language=language)
-        pdf.pdf.save('ocr_output.pdf', ContentFile(searchable_pdf_buffer.getvalue()))
+        pdf.pdf.save('searchable_ocr_output.pdf', ContentFile(searchable_pdf_buffer.getvalue()))
         pdf.save()
+        
+        # Extract text for preview
+        from .ocr_processor import PDFOCRProcessor
+        processor = PDFOCRProcessor()
+        ocr_results = processor.process_pdf(temp_file_path, output_format='structured', language=language)
+        extracted_text = [page['text'] for page in ocr_results['extracted_text']]
         
         # Clean up
         try:
@@ -550,6 +546,61 @@ def perform_ocr_on_page(page, language='eng'):
     except Exception as e:
         print(f"OCR failed for page: {str(e)}")
         return ""
+
+
+def create_searchable_pdf_with_ocr(original_pdf_path, language='eng'):
+    """Add invisible text layer using PyPDF2"""
+    from io import BytesIO
+    import PyPDF2
+    import fitz
+    
+    try:
+        # Read original PDF
+        reader = PyPDF2.PdfReader(original_pdf_path)
+        writer = PyPDF2.PdfWriter()
+        
+        # Open with fitz for OCR
+        pdf_doc = fitz.open(original_pdf_path)
+        
+        for page_num, page in enumerate(reader.pages):
+            # Get OCR text for this page
+            fitz_page = pdf_doc[page_num]
+            pixmap = fitz_page.get_pixmap()
+            image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+            ocr_text = pytesseract.image_to_string(image, lang=language)
+            
+            if ocr_text.strip():
+                # Add invisible text as annotation
+                from PyPDF2.generic import DictionaryObject, ArrayObject, TextStringObject
+                
+                annotation = DictionaryObject({
+                    "/Type": "/Annot",
+                    "/Subtype": "/FreeText",
+                    "/Rect": ArrayObject([0, 0, page.mediabox.width, page.mediabox.height]),
+                    "/Contents": TextStringObject(ocr_text),
+                    "/F": 6,  # Hidden + Print flags
+                    "/C": ArrayObject([1, 1, 1]),  # White color
+                    "/CA": 0,  # Transparent
+                })
+                
+                if "/Annots" not in page:
+                    page["/Annots"] = ArrayObject()
+                page["/Annots"].append(annotation)
+            
+            writer.add_page(page)
+        
+        pdf_doc.close()
+        
+        # Save result
+        output_buffer = BytesIO()
+        writer.write(output_buffer)
+        output_buffer.seek(0)
+        return output_buffer
+        
+    except Exception as e:
+        print(f"OCR error: {str(e)}")
+        with open(original_pdf_path, 'rb') as f:
+            return BytesIO(f.read())
 
 
 def create_searchable_pdf(original_pdf_path, extracted_texts, ocr_results=None):

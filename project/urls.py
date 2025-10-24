@@ -13,11 +13,12 @@ Including another URLconf
     1. Import the include() function: from django.conf.urls import url, include
     2. Add a URL to urlpatterns:  url(r'^blog/', include('blog.urls'))
 """
-from django.urls import path, include
+from django.urls import path, include, re_path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from django.contrib import admin
 from django.conf.urls.static import static
 from django.conf import settings
+from .media_views import MediaView
 
 from django.shortcuts import render
 
@@ -42,7 +43,6 @@ urlpatterns = [
     #Shows Swagger UI with full interactive documentation.
     path('swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 
+    # Custom media serving with CORS
+    re_path(r'^media/(?P<path>.*)$', MediaView.as_view(), name='media'),
 ]
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL,
-                          document_root=settings.MEDIA_ROOT)
