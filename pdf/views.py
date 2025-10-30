@@ -452,15 +452,15 @@ class SplitPDFView(APIView):
         merge_extracted = request.data.get('merge_extracted', 'false') == 'true'
 
         try:
-            if isinstance(ranges_json, str):
-                # Clean up any extra quotes or characters
-                ranges_json = ranges_json.strip().rstrip("'\"")
-                ranges = json.loads(ranges_json)
+            if split_mode == "range":
+                if isinstance(ranges_json, str):
+                    ranges_json = ranges_json.strip().rstrip("'\"")
+                    ranges = json.loads(ranges_json)
+                else:
+                    ranges = ranges_json
             else:
-                ranges = ranges_json
-            print(f"DEBUG: Parsed ranges: {ranges}, type: {type(ranges)}")
+                ranges = []
         except Exception as e:
-            print(f"DEBUG: JSON parsing failed: {e}, ranges_json: '{ranges_json}'")
             return Response({'error': f'Invalid ranges JSON format: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
         saved_files = []
@@ -476,19 +476,33 @@ class SplitPDFView(APIView):
             else:
                 return Response({'error': 'Invalid split mode'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Return format expected by frontend
-            first_file = saved_files[0] if saved_files else None
-            if not first_file:
+            # Return format expected by frontend with dynamic message
+            if not saved_files:
                 return Response({'error': 'No files created'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
+            files_count = len(saved_files)
+            first_file = saved_files[0]
+            
+            # Dynamic message based on split mode and count
+            if split_mode == "pages" and extract_mode == "all":
+                message = f"PDF split completed. {files_count} PDFs created (one per page)."
+            elif split_mode == "pages":
+                message = f"PDF split completed. {files_count} PDFs created from selected pages."
+            elif split_mode == "range":
+                message = f"PDF split completed. {files_count} PDFs created from ranges."
+            else:
+                message = f"PDF split completed. {files_count} PDFs created."
+            
             response_data = {
-                'message': 'PDF splitting completed',
+                'message': message,
                 'split_pdf': {
                     'id': first_file['id'],
                     'user': first_file['user'],
                     'created_at': first_file['created_at'],
                     'split_pdf': first_file['split_pdf']
-                }
+                },
+                'total_files_created': files_count,
+                'all_files': saved_files
             }
             return Response(response_data, status=status.HTTP_200_OK)
 
@@ -572,9 +586,13 @@ class SplitPDFView(APIView):
                 })
             return files
 
-        # If specific pages provided (e.g., "1,3-5,8")
+        # If specific pages provided (e.g., "1,6,8")
         pages = self._parse_pages(pages_to_extract, total_pages)
+        if not pages:
+            return files
+            
         if merge_extracted:
+            # Merge selected pages into one PDF
             writer = PdfWriter()
             for p in pages:
                 writer.add_page(reader.pages[p - 1])
@@ -591,6 +609,7 @@ class SplitPDFView(APIView):
                 'split_pdf': f'{protocol}://{request.get_host()}{split_pdf.split_pdf.url}'
             }]
         else:
+            # Create separate PDF for each selected page
             for p in pages:
                 writer = PdfWriter()
                 writer.add_page(reader.pages[p - 1])
@@ -659,12 +678,18 @@ class SplitPDFView(APIView):
 
     def _parse_pages(self, pages_str, total_pages):
         pages = set()
+        if not pages_str:
+            return []
+        
         for part in pages_str.split(','):
+            part = part.strip()
             if '-' in part:
+                # Handle ranges like "3-5"
                 start, end = map(int, part.split('-'))
                 pages.update(range(start, min(end + 1, total_pages + 1)))
             else:
-                p = int(part.strip())
+                # Handle individual pages like "1", "6", "8"
+                p = int(part)
                 if 1 <= p <= total_pages:
                     pages.add(p)
         return sorted(pages)
@@ -1018,13 +1043,16 @@ class UnlockPDFView(APIView):
                 protocol = 'https' if request.is_secure() else 'http'
                 file_url = f'{protocol}://{request.get_host()}{unlocked_pdf.unlock_pdf.url}'
                 
+                # Use download endpoint instead of direct media URL
+                download_url = f'{protocol}://{request.get_host()}/pdf/download_unlocked_pdf/{unlocked_pdf.id}/'
+                
                 response_data = {
                     'message': 'PDF unlocked successfully.',
                     'unlocked_pdf': {
                         'id': unlocked_pdf.id,
                         'user': user.id,
                         'created_at': unlocked_pdf.created_at.isoformat(),
-                        'unlock_pdf': file_url
+                        'unlock_pdf': download_url
                     }
                 }
                 return Response(response_data)
@@ -1040,14 +1068,48 @@ class UnlockPDFView(APIView):
 class DownloadUnlockedPDFView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        responses={
+            200: inline_serializer(
+                name='UnlockedPDFDownloadResponse',
+                fields={
+                    'file': drf_serializers.FileField()
+                }
+            ),
+            404: inline_serializer(
+                name='UnlockedPDFNotFoundResponse',
+                fields={
+                    'error': drf_serializers.CharField()
+                }
+            )
+        },
+        examples=[
+            OpenApiExample(
+                'Download Unlocked PDF',
+                description='Download the unlocked PDF file',
+                response_only=True
+            )
+        ]
+    )
     def get(self, request, pdf_id, format=None):
         try:
             unlocked_pdf = UnlockPdf.objects.get(id=pdf_id)
-            return FileResponse(
-                unlocked_pdf.unlock_pdf.open('rb'),
-                as_attachment=True,
-                filename=f'unlocked_{unlocked_pdf.id}.pdf'
-            )
+            
+            # Check if file exists
+            if not unlocked_pdf.unlock_pdf or not unlocked_pdf.unlock_pdf.name:
+                return Response({'error': 'PDF file not found'}, status=404)
+            
+            try:
+                return FileResponse(
+                    unlocked_pdf.unlock_pdf.open('rb'),
+                    as_attachment=True,
+                    filename=f'unlocked_{unlocked_pdf.id}.pdf'
+                )
+            except FileNotFoundError:
+                return Response({'error': 'PDF file not found on disk'}, status=404)
+            except Exception as e:
+                return Response({'error': f'Error accessing file: {str(e)}'}, status=500)
+                
         except UnlockPdf.DoesNotExist:
             return Response({'error': 'Unlocked PDF not found'}, status=404)
 
@@ -1266,23 +1328,13 @@ class OcrPDFView(APIView):
             user = request.user
             
             # Process PDF with OCR and save to database
-            ocr_pdf, extracted_text = pdf_to_ocr(input_pdf, user, language)
-            
-            # Create text preview
-            full_text = '\n'.join(extracted_text)
-            text_preview = full_text[:500] + '...' if len(full_text) > 500 else full_text
-            
-            # Get full URL
-            protocol = 'https' if request.is_secure() else 'http'
-            pdf_url = f'{protocol}://{request.get_host()}{ocr_pdf.pdf.url}'
+            ocr_pdf, _ = pdf_to_ocr(input_pdf, user, language)
             
             serializer = OcrPdfSerializer(ocr_pdf, context={'request': request})
             
             response_data = {
                 'message': 'OCR processing completed successfully.',
-                'data': serializer.data,
-                'extracted_text_preview': text_preview,
-                'total_pages_processed': len(extracted_text)
+                'data': serializer.data
             }
             
             return Response(response_data)
@@ -1422,9 +1474,9 @@ class PDFToFormatView(APIView):
             )
             conversion.save()
             
-            # Get full URL
+            # Use download endpoint instead of direct media URL
             protocol = 'https' if request.is_secure() else 'http'
-            file_url = f'{protocol}://{request.get_host()}{conversion.converted_file.url}'
+            download_url = f'{protocol}://{request.get_host()}/pdf/download_format_converted/{conversion.id}/'
             
             response_data = {
                 'message': f'PDF to {output_format} conversion completed.',
@@ -1432,7 +1484,7 @@ class PDFToFormatView(APIView):
                     'id': conversion.id,
                     'user': user.id,
                     'output_format': output_format,
-                    'converted_file': file_url,
+                    'converted_file': download_url,
                     'created_at': conversion.created_at.isoformat()
                 }
             }
@@ -1442,29 +1494,444 @@ class PDFToFormatView(APIView):
             return Response({'error': f'Conversion failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _convert_to_text(self, pdf_file):
+        try:
+            import tempfile
+            try:
+                import pdfplumber
+                return self._convert_to_text_advanced(pdf_file)
+            except ImportError:
+                return self._convert_to_text_basic(pdf_file)
+        except Exception as e:
+            return f'Error extracting text from PDF: {str(e)}'.encode('utf-8')
+    
+    def _convert_to_text_advanced(self, pdf_file):
+        import tempfile
+        import pdfplumber
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            pdf_file.seek(0)
+            for chunk in pdf_file.chunks():
+                temp_file.write(chunk)
+            temp_path = temp_file.name
+        
+        text_parts = []
+        with pdfplumber.open(temp_path) as pdf:
+            for page_num, page in enumerate(pdf.pages, 1):
+                page_text = page.extract_text(layout=True)
+                if page_text and page_text.strip():
+                    text_parts.append(f"--- Page {page_num} ---\n{page_text.strip()}\n")
+                
+                tables = page.extract_tables()
+                for i, table in enumerate(tables):
+                    text_parts.append(f"\n--- Table {i+1} on Page {page_num} ---\n")
+                    for row in table:
+                        if row:
+                            text_parts.append('\t'.join([str(cell) if cell else '' for cell in row]))
+                    text_parts.append('\n')
+        
+        os.remove(temp_path)
+        final_text = '\n'.join(text_parts) if text_parts else 'No text content found in PDF'
+        return final_text.encode('utf-8')
+    
+    def _convert_to_text_basic(self, pdf_file):
         from PyPDF2 import PdfReader
+        pdf_file.seek(0)
         reader = PdfReader(pdf_file)
-        text = ''
-        for page in reader.pages:
-            text += page.extract_text() + '\n'
-        return text.encode('utf-8')
+        
+        text_parts = []
+        for page_num, page in enumerate(reader.pages, 1):
+            page_text = page.extract_text()
+            if page_text.strip():
+                text_parts.append(f"--- Page {page_num} ---\n{page_text.strip()}\n")
+        
+        final_text = '\n'.join(text_parts) if text_parts else 'No text content found in PDF'
+        return final_text.encode('utf-8')
     
     def _convert_to_images(self, pdf_file, format_type):
         # Reuse existing PDF to image logic
         from .utils import convert_pdf_to_image, create_zip_file
-        images = convert_pdf_to_image(pdf_file)
-        _, zip_content = create_zip_file(images, None)
+        images = convert_pdf_to_image(pdf_file, format_type)
+        _, zip_content = create_zip_file(images, None, format_type)
         return zip_content
     
     def _convert_to_word(self, pdf_file):
-        # Basic text extraction to DOCX
+        try:
+            import fitz
+            from docx import Document
+            from docx.shared import Inches, Pt, RGBColor
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.enum.style import WD_STYLE_TYPE
+            import tempfile
+            from io import BytesIO
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                pdf_file.seek(0)
+                for chunk in pdf_file.chunks():
+                    temp_file.write(chunk)
+                temp_path = temp_file.name
+            
+            doc = Document()
+            pdf_doc = fitz.open(temp_path)
+            
+            for page_num in range(len(pdf_doc)):
+                if page_num > 0:
+                    doc.add_page_break()
+                
+                page = pdf_doc[page_num]
+                
+                # Extract text blocks with formatting
+                blocks = page.get_text("dict")
+                
+                for block in blocks["blocks"]:
+                    if "lines" in block:
+                        for line in block["lines"]:
+                            paragraph = doc.add_paragraph()
+                            
+                            for span in line["spans"]:
+                                text = span["text"]
+                                if not text.strip():
+                                    continue
+                                
+                                run = paragraph.add_run(text)
+                                
+                                # Extract font information
+                                font_name = span.get("font", "Times New Roman")
+                                font_size = span.get("size", 12)
+                                font_flags = span.get("flags", 0)
+                                font_color = span.get("color", 0)
+                                
+                                # Apply font name
+                                if font_name:
+                                    run.font.name = font_name
+                                
+                                # Apply font size (reduced by 20%)
+                                run.font.size = Pt(max(8, font_size * 0.8))
+                                
+                                # Apply font styles (correct PyMuPDF flags)
+                                if font_flags & 16:  # Bold (2^4)
+                                    run.font.bold = True
+                                if font_flags & 2:   # Italic (2^1)
+                                    run.font.italic = True
+                                # Only apply underline if explicitly detected
+                                # PyMuPDF doesn't reliably detect underline via flags
+                                # Skip underline to avoid false positives
+                                
+                                # Apply font color
+                                if font_color != 0:
+                                    r = (font_color >> 16) & 255
+                                    g = (font_color >> 8) & 255
+                                    b = font_color & 255
+                                    run.font.color.rgb = RGBColor(r, g, b)
+                            
+                            # Set paragraph alignment based on text position
+                            bbox = line["bbox"]
+                            page_width = page.rect.width
+                            left_margin = bbox[0]
+                            right_margin = page_width - bbox[2]
+                            text_width = bbox[2] - bbox[0]
+                            
+                            # Detect justified text (spans most of page width)
+                            if text_width > page_width * 0.7 and left_margin < page_width * 0.15 and right_margin < page_width * 0.15:
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                            elif left_margin < page_width * 0.1:  # Text starts very close to left
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            elif right_margin < page_width * 0.1:  # Text ends very close to right
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                            elif abs(left_margin - right_margin) < page_width * 0.03:  # Nearly equal margins
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            else:
+                                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT  # Default to left
+                
+                # Extract and add images
+                image_list = page.get_images()
+                for img_index, img in enumerate(image_list):
+                    try:
+                        xref = img[0]
+                        base_image = pdf_doc.extract_image(xref)
+                        image_bytes = base_image["image"]
+                        
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as img_temp:
+                            img_temp.write(image_bytes)
+                            img_temp_path = img_temp.name
+                        
+                        try:
+                            doc.add_picture(img_temp_path, width=Inches(6))
+                        except:
+                            pass
+                        finally:
+                            os.remove(img_temp_path)
+                    except:
+                        continue
+            
+            pdf_doc.close()
+            os.remove(temp_path)
+            
+            buffer = BytesIO()
+            doc.save(buffer)
+            return buffer.getvalue()
+            
+        except Exception as e:
+            return self._convert_to_word_fallback(pdf_file)
+    
+    def _convert_to_word_fallback(self, pdf_file):
         from docx import Document
+        from docx.shared import Inches
         from io import BytesIO
+        import tempfile
+        try:
+            import fitz
+            import pdfplumber
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                pdf_file.seek(0)
+                for chunk in pdf_file.chunks():
+                    temp_file.write(chunk)
+                temp_path = temp_file.name
+            
+            doc = Document()
+            pdf_doc = fitz.open(temp_path)
+            
+            with pdfplumber.open(temp_path) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    if page_num > 0:
+                        doc.add_page_break()
+                    
+                    # Extract images
+                    try:
+                        fitz_page = pdf_doc[page_num]
+                        image_list = fitz_page.get_images()
+                        
+                        for img in image_list:
+                            try:
+                                xref = img[0]
+                                base_image = pdf_doc.extract_image(xref)
+                                image_bytes = base_image["image"]
+                                
+                                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as img_temp:
+                                    img_temp.write(image_bytes)
+                                    img_temp_path = img_temp.name
+                                
+                                try:
+                                    doc.add_picture(img_temp_path, width=Inches(6))
+                                except Exception:
+                                    pass
+                                finally:
+                                    os.remove(img_temp_path)
+                            except Exception:
+                                continue
+                    except Exception:
+                        pass
+                    
+                    # Extract text with layout preservation
+                    page_text = page.extract_text(layout=True)
+                    if page_text and page_text.strip():
+                        lines = page_text.split('\n')
+                        for line in lines:
+                            if line.strip():
+                                doc.add_paragraph(line.strip())
+            
+            pdf_doc.close()
+            os.remove(temp_path)
+            
+            buffer = BytesIO()
+            doc.save(buffer)
+            return buffer.getvalue()
+        except ImportError:
+            return self._convert_to_word_basic(pdf_file)
+        except Exception:
+            return self._convert_to_word_basic(pdf_file)
+    
+    def _convert_to_word_professional(self, pdf_file):
+        from pdf2docx import Converter
+        from io import BytesIO
+        import tempfile
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+            pdf_file.seek(0)
+            for chunk in pdf_file.chunks():
+                temp_pdf.write(chunk)
+            temp_pdf_path = temp_pdf.name
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as temp_docx:
+            temp_docx_path = temp_docx.name
+        
+        cv = Converter(temp_pdf_path)
+        cv.convert(temp_docx_path, start=0, end=None)
+        cv.close()
+        
+        with open(temp_docx_path, 'rb') as f:
+            docx_content = f.read()
+        
+        os.remove(temp_pdf_path)
+        os.remove(temp_docx_path)
+        
+        return docx_content
+    
+    def _convert_to_word_advanced(self, pdf_file):
+        from docx import Document
+        from docx.shared import Inches
+        from io import BytesIO
+        import tempfile
+        import pdfplumber
+        import fitz
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            pdf_file.seek(0)
+            for chunk in pdf_file.chunks():
+                temp_file.write(chunk)
+            temp_path = temp_file.name
         
         doc = Document()
-        text = self._convert_to_text(pdf_file).decode('utf-8')
-        doc.add_paragraph(text)
         
+        try:
+            pdf_doc = fitz.open(temp_path)
+            
+            with pdfplumber.open(temp_path) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    if page_num > 0:
+                        doc.add_page_break()
+                    
+                    # Extract images
+                    try:
+                        fitz_page = pdf_doc[page_num]
+                        image_list = fitz_page.get_images()
+                        
+                        for img in image_list:
+                            try:
+                                xref = img[0]
+                                base_image = pdf_doc.extract_image(xref)
+                                image_bytes = base_image["image"]
+                                
+                                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as img_temp:
+                                    img_temp.write(image_bytes)
+                                    img_temp_path = img_temp.name
+                                
+                                try:
+                                    doc.add_picture(img_temp_path, width=Inches(6))
+                                except Exception:
+                                    pass
+                                finally:
+                                    os.remove(img_temp_path)
+                            except Exception:
+                                continue
+                    except Exception:
+                        pass
+                    
+                    # Extract text with layout preservation
+                    page_text = page.extract_text(layout=True)
+                    if page_text and page_text.strip():
+                        lines = page_text.split('\n')
+                        for line in lines:
+                            if line.strip():
+                                doc.add_paragraph(line.strip())
+                    
+                    # Add tables
+                    tables = page.extract_tables()
+                    for table_data in tables:
+                        if table_data and len(table_data) > 0 and len(table_data[0]) > 0:
+                            table = doc.add_table(rows=len(table_data), cols=len(table_data[0]))
+                            table.style = 'Table Grid'
+                            for i, row in enumerate(table_data):
+                                for j, cell in enumerate(row):
+                                    if cell and j < len(table.columns):
+                                        table.cell(i, j).text = str(cell)
+            
+            pdf_doc.close()
+            
+        except Exception:
+            # Fallback
+            with pdfplumber.open(temp_path) as pdf:
+                for page_num, page in enumerate(pdf.pages):
+                    if page_num > 0:
+                        doc.add_page_break()
+                    
+                    page_text = page.extract_text(layout=True)
+                    if page_text and page_text.strip():
+                        lines = page_text.split('\n')
+                        for line in lines:
+                            if line.strip():
+                                doc.add_paragraph(line.strip())
+        
+        os.remove(temp_path)
+        buffer = BytesIO()
+        doc.save(buffer)
+        return buffer.getvalue()
+    
+    def _convert_to_word_basic(self, pdf_file):
+        from docx import Document
+        from docx.shared import Inches
+        from io import BytesIO
+        from PyPDF2 import PdfReader
+        import tempfile
+        import fitz
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            pdf_file.seek(0)
+            for chunk in pdf_file.chunks():
+                temp_file.write(chunk)
+            temp_path = temp_file.name
+        
+        doc = Document()
+        pdf_file.seek(0)
+        reader = PdfReader(pdf_file)
+        
+        try:
+            pdf_doc = fitz.open(temp_path)
+            
+            for page_num, page in enumerate(reader.pages):
+                if page_num > 0:
+                    doc.add_page_break()
+                
+                # Extract images
+                try:
+                    fitz_page = pdf_doc[page_num]
+                    image_list = fitz_page.get_images()
+                    
+                    for img in image_list:
+                        try:
+                            xref = img[0]
+                            base_image = pdf_doc.extract_image(xref)
+                            image_bytes = base_image["image"]
+                            
+                            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as img_temp:
+                                img_temp.write(image_bytes)
+                                img_temp_path = img_temp.name
+                            
+                            try:
+                                doc.add_picture(img_temp_path, width=Inches(6))
+                            except Exception:
+                                pass
+                            finally:
+                                os.remove(img_temp_path)
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+                
+                # Extract text preserving original formatting
+                page_text = page.extract_text()
+                if page_text.strip():
+                    lines = page_text.split('\n')
+                    for line in lines:
+                        if line.strip():
+                            doc.add_paragraph(line.strip())
+            
+            pdf_doc.close()
+            
+        except Exception:
+            # Fallback without images
+            for page_num, page in enumerate(reader.pages):
+                if page_num > 0:
+                    doc.add_page_break()
+                
+                page_text = page.extract_text()
+                if page_text.strip():
+                    lines = page_text.split('\n')
+                    for line in lines:
+                        if line.strip():
+                            doc.add_paragraph(line.strip())
+        
+        os.remove(temp_path)
         buffer = BytesIO()
         doc.save(buffer)
         return buffer.getvalue()
@@ -1482,18 +1949,137 @@ class PDFToFormatView(APIView):
         return buffer.getvalue()
     
     def _convert_to_powerpoint(self, pdf_file):
-        # Basic text to PowerPoint
+        try:
+            import pdfplumber
+            import fitz
+            return self._convert_to_powerpoint_advanced(pdf_file)
+        except ImportError:
+            return self._convert_to_powerpoint_basic(pdf_file)
+        except Exception:
+            return self._convert_to_powerpoint_basic(pdf_file)
+    
+    def _convert_to_powerpoint_advanced(self, pdf_file):
         from pptx import Presentation
+        from pptx.util import Inches, Pt
         from io import BytesIO
+        import tempfile
+        import pdfplumber
+        import fitz
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            pdf_file.seek(0)
+            for chunk in pdf_file.chunks():
+                temp_file.write(chunk)
+            temp_path = temp_file.name
         
         prs = Presentation()
-        slide = prs.slides.add_slide(prs.slide_layouts[1])
-        title = slide.shapes.title
-        content = slide.placeholders[1]
+        pdf_doc = fitz.open(temp_path)
         
-        title.text = 'PDF Content'
-        text = self._convert_to_text(pdf_file).decode('utf-8')
-        content.text = text[:1000]  # Limit text length
+        for page_num in range(len(pdf_doc)):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            page = pdf_doc[page_num]
+            
+            # Convert entire page to image first
+            mat = fitz.Matrix(2.0, 2.0)  # High resolution
+            pix = page.get_pixmap(matrix=mat)
+            img_data = pix.tobytes("png")
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as page_img:
+                page_img.write(img_data)
+                page_img_path = page_img.name
+            
+            try:
+                # Add page as image
+                slide.shapes.add_picture(
+                    page_img_path,
+                    Inches(0.5),
+                    Inches(0.5),
+                    width=Inches(9),
+                    height=Inches(6.5)
+                )
+            except Exception as e:
+                print(f"Error adding page image: {e}")
+            finally:
+                try:
+                    os.remove(page_img_path)
+                except:
+                    pass
+            
+            # Add text below image with very small font
+            try:
+                with pdfplumber.open(temp_path) as pdf_plumber:
+                    plumber_page = pdf_plumber.pages[page_num]
+                    page_text = plumber_page.extract_text()
+                    
+                    if page_text and page_text.strip():
+                        textbox = slide.shapes.add_textbox(
+                            Inches(0.5),
+                            Inches(7.2),
+                            Inches(9),
+                            Inches(0.8)
+                        )
+                        text_frame = textbox.text_frame
+                        text_frame.word_wrap = True
+                        
+                        clean_text = page_text.strip()[:300]
+                        if len(page_text) > 300:
+                            clean_text += '...'
+                        
+                        text_frame.text = clean_text
+                        
+                        for paragraph in text_frame.paragraphs:
+                            paragraph.font.size = Pt(4)
+                            paragraph.font.name = 'Arial'
+            except Exception as e:
+                print(f"Error adding text: {e}")
+        
+        pdf_doc.close()
+        os.remove(temp_path)
+        
+        buffer = BytesIO()
+        prs.save(buffer)
+        return buffer.getvalue()
+    
+    def _convert_to_powerpoint_basic(self, pdf_file):
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from io import BytesIO
+        import tempfile
+        import fitz
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            pdf_file.seek(0)
+            for chunk in pdf_file.chunks():
+                temp_file.write(chunk)
+            temp_path = temp_file.name
+        
+        prs = Presentation()
+        pdf_doc = fitz.open(temp_path)
+        
+        for page_num in range(len(pdf_doc)):
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            page = pdf_doc[page_num]
+            
+            # Convert page to image
+            pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+            img_data = pix.tobytes("png")
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as img_temp:
+                img_temp.write(img_data)
+                img_temp_path = img_temp.name
+            
+            try:
+                slide.shapes.add_picture(img_temp_path, Inches(1), Inches(1), Inches(8), Inches(6))
+            except:
+                pass
+            finally:
+                try:
+                    os.remove(img_temp_path)
+                except:
+                    pass
+        
+        pdf_doc.close()
+        os.remove(temp_path)
         
         buffer = BytesIO()
         prs.save(buffer)
@@ -1569,8 +2155,10 @@ class FormatToPDFView(APIView):
             
             conversion_instance.word_to_pdfs.add(word_to_pdf_instance)
             conversion_instance.save()
+            
+            # Use download endpoint instead of direct media URL
             protocol = 'https' if request.is_secure() else 'http'
-            file_url = f'{protocol}://{request.get_host()}{word_to_pdf_instance.word_to_pdf.url}'
+            download_url = f'{protocol}://{request.get_host()}/pdf/download_converted_pdf/{word_to_pdf_instance.id}/'
             
             response_data = {
                 'message': f'{input_format.upper()} to PDF conversion completed.',
@@ -1578,7 +2166,7 @@ class FormatToPDFView(APIView):
                     'id': conversion_instance.id,
                     'user': user.id,
                     'input_format': input_format,
-                    'converted_pdf': file_url,
+                    'converted_pdf': download_url,
                     'created_at': conversion_instance.created_at.isoformat()
                 }
             }
@@ -1788,3 +2376,34 @@ class FormatToPDFView(APIView):
         
         p.save()
         return buffer.getvalue()
+
+
+@extend_schema(tags=['PDF Operations'])
+class DownloadConvertedPDFView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pdf_id, format=None):
+        try:
+            word_to_pdf = WordToPdf.objects.get(id=pdf_id)
+            return FileResponse(
+                word_to_pdf.word_to_pdf.open('rb'),
+                as_attachment=True,
+                filename=f'converted_{word_to_pdf.id}.pdf'
+            )
+        except WordToPdf.DoesNotExist:
+            return Response({'error': 'Converted PDF not found'}, status=404)
+
+@extend_schema(tags=['PDF Operations'])
+class DownloadFormatConvertedView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, conversion_id, format=None):
+        try:
+            conversion = PDFFormatConversion.objects.get(id=conversion_id)
+            return FileResponse(
+                conversion.converted_file.open('rb'),
+                as_attachment=True,
+                filename=f'converted_{conversion.output_format}_{conversion.id}.{conversion.converted_file.name.split(".")[-1]}'
+            )
+        except PDFFormatConversion.DoesNotExist:
+            return Response({'error': 'Converted file not found'}, status=404)

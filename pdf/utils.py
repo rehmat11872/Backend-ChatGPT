@@ -247,7 +247,7 @@ def split_pdf(request, input_pdf, start_page, end_page, user):
 
 #convert pdf to images
 
-def convert_pdf_to_image(input_pdf):
+def convert_pdf_to_image(input_pdf, output_format='jpeg'):
     temp_file_path = os.path.join(TEMP_PATH, input_pdf.name)
     with open(temp_file_path, 'wb') as temp_file:
         for chunk in input_pdf.chunks():
@@ -261,20 +261,24 @@ def convert_pdf_to_image(input_pdf):
             pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2))
             # Convert to PIL Image
             pil_image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
-            # Convert to JPEG bytes
+            # Convert to requested format
             img_buffer = BytesIO()
-            pil_image.save(img_buffer, format='JPEG', quality=95)
+            if output_format.lower() == 'png':
+                pil_image.save(img_buffer, format='PNG')
+            else:
+                pil_image.save(img_buffer, format='JPEG', quality=95)
             image_data_list.append(img_buffer.getvalue())
 
     os.remove(temp_file_path)
     return image_data_list
 
 
-def create_zip_file(images, user):
+def create_zip_file(images, user, output_format='jpeg'):
     zip_buffer = BytesIO()
     with ZipFile(zip_buffer, 'w') as zip_file:
+        ext = 'png' if output_format.lower() == 'png' else 'jpg'
         for i, image_data in enumerate(images):
-            zip_file.writestr(f'page_{i + 1}.jpg', image_data)
+            zip_file.writestr(f'page_{i + 1}.{ext}', image_data)
 
     zip_buffer.seek(0)
     return None, zip_buffer.getvalue()
@@ -503,19 +507,13 @@ def pdf_to_ocr(input_pdf, user, language='eng'):
         pdf.pdf.save('searchable_ocr_output.pdf', ContentFile(searchable_pdf_buffer.getvalue()))
         pdf.save()
         
-        # Extract text for preview
-        from .ocr_processor import PDFOCRProcessor
-        processor = PDFOCRProcessor()
-        ocr_results = processor.process_pdf(temp_file_path, output_format='structured', language=language)
-        extracted_text = [page['text'] for page in ocr_results['extracted_text']]
-        
         # Clean up
         try:
             os.remove(temp_file_path)
         except OSError:
             pass
             
-        return pdf, extracted_text
+        return pdf, None
         
     except Exception as e:
         print(f"OCR Error: {str(e)}")
@@ -546,62 +544,122 @@ def perform_ocr_on_page(page, language='eng'):
     except Exception as e:
         print(f"OCR failed for page: {str(e)}")
         return ""
-
-
 def create_searchable_pdf_with_ocr(original_pdf_path, language='eng'):
-    """Add invisible text layer using PyPDF2"""
+    """Create searchable PDF using PyMuPDF and Tesseract - properly aligned for text selection"""
     from io import BytesIO
-    import PyPDF2
     import fitz
+    import pytesseract
+    from PIL import Image
+    import os
+    
+    # Set Tesseract path
+    tesseract_exe = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+    if os.path.exists(tesseract_exe):
+        pytesseract.pytesseract.tesseract_cmd = tesseract_exe
     
     try:
-        # Read original PDF
-        reader = PyPDF2.PdfReader(original_pdf_path)
-        writer = PyPDF2.PdfWriter()
+        print(f"Starting OCR processing for: {original_pdf_path}")
         
-        # Open with fitz for OCR
+        # Open PDF
         pdf_doc = fitz.open(original_pdf_path)
         
-        for page_num, page in enumerate(reader.pages):
-            # Get OCR text for this page
-            fitz_page = pdf_doc[page_num]
-            pixmap = fitz_page.get_pixmap()
-            image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
-            ocr_text = pytesseract.image_to_string(image, lang=language)
+        # Process each page
+        for page_num in range(pdf_doc.page_count):
+            page = pdf_doc[page_num]
             
-            if ocr_text.strip():
-                # Add invisible text as annotation
-                from PyPDF2.generic import DictionaryObject, ArrayObject, TextStringObject
-                
-                annotation = DictionaryObject({
-                    "/Type": "/Annot",
-                    "/Subtype": "/FreeText",
-                    "/Rect": ArrayObject([0, 0, page.mediabox.width, page.mediabox.height]),
-                    "/Contents": TextStringObject(ocr_text),
-                    "/F": 6,  # Hidden + Print flags
-                    "/C": ArrayObject([1, 1, 1]),  # White color
-                    "/CA": 0,  # Transparent
-                })
-                
-                if "/Annots" not in page:
-                    page["/Annots"] = ArrayObject()
-                page["/Annots"].append(annotation)
+            # Get the DPI/scale we're using
+            zoom = 2.0  # Higher resolution for better OCR
+            mat = fitz.Matrix(zoom, zoom)
             
-            writer.add_page(page)
+            # Convert page to image
+            pix = page.get_pixmap(matrix=mat)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            
+            # Get OCR data with bounding boxes for each word
+            ocr_data = pytesseract.image_to_data(
+                img, 
+                lang=language, 
+                output_type=pytesseract.Output.DICT,
+                config='--oem 3 --psm 6'
+            )
+            
+            # Add invisible text layer word by word
+            n_boxes = len(ocr_data['text'])
+            for i in range(n_boxes):
+                word = ocr_data['text'][i]
+                conf = int(ocr_data['conf'][i]) if str(ocr_data['conf'][i]).isdigit() else 0
+                
+                # Only add words with reasonable confidence
+                if conf > 30 and word.strip():
+                    # Get coordinates from Tesseract (in image coordinates)
+                    x = ocr_data['left'][i]
+                    y = ocr_data['top'][i]
+                    w = ocr_data['width'][i]
+                    h = ocr_data['height'][i]
+                    
+                    # Scale back to PDF coordinates
+                    pdf_x = x / zoom
+                    pdf_y = y / zoom
+                    pdf_w = w / zoom
+                    pdf_h = h / zoom
+                    
+                    # Create rectangle for the word
+                    rect = fitz.Rect(pdf_x, pdf_y, pdf_x + pdf_w, pdf_y + pdf_h)
+                    
+                    # Calculate appropriate font size (slightly smaller than box height)
+                    fontsize = pdf_h * 0.75
+                    
+                    try:
+                        # Insert invisible text using textbox (best method)
+                        rc = page.insert_textbox(
+                            rect,
+                            word + " ",  # Add space after word
+                            fontsize=fontsize,
+                            fontname="helv",  # Helvetica font
+                            color=(0, 0, 0),  # Black text
+                            fill=(1, 1, 1),   # White fill (invisible background)
+                            render_mode=3,    # Invisible text mode
+                            align=fitz.TEXT_ALIGN_LEFT,
+                            overlay=True
+                        )
+                        
+                        # If textbox fails, try fallback method
+                        if rc < 0:
+                            raise Exception("Textbox insertion failed")
+                            
+                    except Exception as e:
+                        # Fallback method: direct text insertion
+                        try:
+                            page.insert_text(
+                                (pdf_x, pdf_y + pdf_h * 0.85),
+                                word,
+                                fontsize=fontsize,
+                                fontname="helv",
+                                color=(1, 1, 1),  # White (invisible)
+                                overlay=True
+                            )
+                        except:
+                            print(f"Failed to insert word '{word}' on page {page_num + 1}")
+                            continue
+            
+            print(f"Processed page {page_num + 1}/{pdf_doc.page_count}")
         
-        pdf_doc.close()
-        
-        # Save result
+        # Save to buffer
         output_buffer = BytesIO()
-        writer.write(output_buffer)
+        pdf_doc.save(output_buffer, garbage=4, deflate=True, clean=True)
+        pdf_doc.close()
         output_buffer.seek(0)
+        
+        print("OCR processing completed successfully")
         return output_buffer
         
     except Exception as e:
-        print(f"OCR error: {str(e)}")
+        print(f"OCR failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        print("Returning original PDF")
         with open(original_pdf_path, 'rb') as f:
             return BytesIO(f.read())
-
 
 def create_searchable_pdf(original_pdf_path, extracted_texts, ocr_results=None):
     """Create a searchable PDF with extracted text and processing metadata"""

@@ -45,9 +45,11 @@ urlpatterns = [
     
     #PDF to other formats
     path('pdf_to_format/', PDFToFormatView.as_view(), name='pdf_to_format'),
+    path('download_format_converted/<int:conversion_id>/', DownloadFormatConvertedView.as_view(), name='download_format_converted'),
     
     #Other formats to PDF
     path('format_to_pdf/', FormatToPDFView.as_view(), name='format_to_pdf'),
+    path('download_converted_pdf/<int:pdf_id>/', DownloadConvertedPDFView.as_view(), name='download_converted_pdf'),
     
 
 
