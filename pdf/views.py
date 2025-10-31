@@ -481,29 +481,40 @@ class SplitPDFView(APIView):
                 return Response({'error': 'No files created'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             files_count = len(saved_files)
-            first_file = saved_files[0]
             
-            # Dynamic message based on split mode and count
-            if split_mode == "pages" and extract_mode == "all":
-                message = f"PDF split completed. {files_count} PDFs created (one per page)."
-            elif split_mode == "pages":
-                message = f"PDF split completed. {files_count} PDFs created from selected pages."
-            elif split_mode == "range":
-                message = f"PDF split completed. {files_count} PDFs created from ranges."
+            # If multiple files, create ZIP
+            if files_count > 1:
+                zip_file = self._create_zip_from_files(saved_files, user, request)
+                message = f"PDF split completed. {files_count} PDFs created and zipped."
+                
+                response_data = {
+                    'message': message,
+                    'split_pdf': {
+                        'id': zip_file['id'],
+                        'user': zip_file['user'],
+                        'created_at': zip_file['created_at'],
+                        'split_pdf': zip_file['split_pdf']
+                    },
+                    'total_files_created': files_count,
+                    'is_zip': True
+                }
             else:
-                message = f"PDF split completed. {files_count} PDFs created."
+                # Single file, return as normal
+                first_file = saved_files[0]
+                message = f"PDF split completed. 1 PDF created."
+                
+                response_data = {
+                    'message': message,
+                    'split_pdf': {
+                        'id': first_file['id'],
+                        'user': first_file['user'],
+                        'created_at': first_file['created_at'],
+                        'split_pdf': first_file['split_pdf']
+                    },
+                    'total_files_created': files_count,
+                    'is_zip': False
+                }
             
-            response_data = {
-                'message': message,
-                'split_pdf': {
-                    'id': first_file['id'],
-                    'user': first_file['user'],
-                    'created_at': first_file['created_at'],
-                    'split_pdf': first_file['split_pdf']
-                },
-                'total_files_created': files_count,
-                'all_files': saved_files
-            }
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -693,6 +704,47 @@ class SplitPDFView(APIView):
                 if 1 <= p <= total_pages:
                     pages.add(p)
         return sorted(pages)
+    
+    def _create_zip_from_files(self, saved_files, user, request):
+        import zipfile
+        from io import BytesIO
+        
+        zip_buffer = BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for i, file_data in enumerate(saved_files, 1):
+                # Get the actual file from database
+                try:
+                    split_pdf = SplitPDF.objects.get(id=file_data['id'])
+                    if split_pdf.split_pdf and split_pdf.split_pdf.name:
+                        # Read file content
+                        split_pdf.split_pdf.seek(0)
+                        file_content = split_pdf.split_pdf.read()
+                        
+                        # Add to ZIP with descriptive name
+                        filename = f"page_{i}.pdf"
+                        zip_file.writestr(filename, file_content)
+                except Exception as e:
+                    continue
+        
+        zip_buffer.seek(0)
+        
+        # Save ZIP as a new SplitPDF entry
+        zip_split_pdf = SplitPDF(user=user, start_page=1, end_page=len(saved_files))
+        zip_split_pdf.split_pdf.save(
+            'split_pages.zip',
+            ContentFile(zip_buffer.getvalue())
+        )
+        zip_split_pdf.save()
+        
+        protocol = 'https' if request.is_secure() else 'http'
+        
+        return {
+            'id': zip_split_pdf.id,
+            'user': user.id,
+            'created_at': zip_split_pdf.created_at.isoformat(),
+            'split_pdf': f'{protocol}://{request.get_host()}{zip_split_pdf.split_pdf.url}'
+        }
 
 
 @extend_schema(exclude=True)

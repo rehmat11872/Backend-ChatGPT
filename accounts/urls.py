@@ -8,6 +8,7 @@ urlpatterns = [
     path('change_password/', views.ChangePasswordView.as_view(), name='change_password'),
     path('password_reset/', include('django_rest_passwordreset.urls', namespace='password_reset')),
     path('profile/', views.ProfileAPiView.as_view(), name='profile'),
+    path('logout/', views.LogoutView.as_view(), name='logout'),
 
     path("dj-rest-auth/google/login/", views.GoogleLoginView.as_view(), name="google_login"),
     path("~redirect/", views.UserRedirectView.as_view(), name="redirect"),

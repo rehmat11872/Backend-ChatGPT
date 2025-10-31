@@ -209,3 +209,21 @@ class AppleLoginView(SocialLoginView):
 
 
 
+
+@extend_schema(tags=['Authentication'])
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        responses=inline_serializer(
+            name='LogoutResponse',
+            fields={'message': serializers.CharField()}
+        ),
+        tags=['Authentication']
+    )
+    def post(self, request):
+        try:
+            request.user.auth_token.delete()
+            return Response({'message': 'Successfully logged out'}, status=status.HTTP_200_OK)
+        except:
+            return Response({'message': 'Logout successful'}, status=status.HTTP_200_OK)
