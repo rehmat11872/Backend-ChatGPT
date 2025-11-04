@@ -1,11 +1,11 @@
-from accounts.models import User, Token
+from accounts.models import User, Token, Contact
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import update_session_auth_hash
-from accounts.serializers import MyTokenObtainPairSerializer, UserSerializer, ChangePasswordSerializer, UserProfileSerializer
+from accounts.serializers import MyTokenObtainPairSerializer, UserSerializer, ChangePasswordSerializer, UserProfileSerializer, ContactSerializer, ContactResponseSerializer
 from project.settings import  GOOGLE_REDIRECT_URL, MICROSOFT_REDIRECT_URL, APPlE_REDIRECT_URL
 from rest_framework import serializers
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
@@ -227,3 +227,22 @@ class LogoutView(APIView):
             return Response({'message': 'Successfully logged out'}, status=status.HTTP_200_OK)
         except:
             return Response({'message': 'Logout successful'}, status=status.HTTP_200_OK)
+
+@extend_schema(tags=['Contact'])
+class ContactView(APIView):
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        request=ContactSerializer,
+        responses=ContactResponseSerializer,
+        tags=['Contact']
+    )
+    def post(self, request):
+        serializer = ContactSerializer(data=request.data)
+        if serializer.is_valid():
+            contact = serializer.save()
+            return Response({
+                'message': 'Thank you for contacting us! We will get back to you soon.',
+                'contact_id': contact.id
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
