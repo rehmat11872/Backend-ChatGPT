@@ -1014,7 +1014,7 @@ class DownloadOrganizedPDFView(APIView):
 
 @extend_schema(tags=['PDF Operations'])
 class UnlockPDFView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     parser_classes = (MultiPartParser, FormParser)
     serializer_class = UnlockPDFRequestSerializer
 

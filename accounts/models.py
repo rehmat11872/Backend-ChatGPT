@@ -131,13 +131,17 @@ def create_auth_token(sender, instance=None, created=False, **kwargs):
             free_trial_plan.start_date = instance.date_joined
             free_trial_plan.save()
 
-        Subscription.objects.create(
+        subscription = Subscription.objects.create(
             user=instance,
             plan=free_trial_plan,
             start_date=instance.date_joined,
             # end_date=instance.date_joined + timedelta(days=30), 
             end_date = None
         )
+
+        # Attach subscription to user model
+        instance.subscription = subscription
+        instance.save(update_fields=['subscription'])
 
 
 class Contact(TimeStampedModel):
