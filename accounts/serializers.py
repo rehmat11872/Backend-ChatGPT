@@ -2,9 +2,9 @@ import json
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import User, SubscriptionPlan, Subscription
+from .models import User, Contact
+from .models import User, SubscriptionPlan, Subscription, Contact
 from .utils import send_email_verification_code
-
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -13,7 +13,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         data['email'] = self.user.email
-        token = Token.objects.get(user=self.user)
+        token, created = Token.objects.get_or_create(user=self.user)
         token_to_str = str(token)
         token_to_json = json.dumps(token_to_str)
         token_to_load = json.loads(token_to_json)
@@ -132,3 +132,19 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contact
+        fields = ['name', 'email', 'subject', 'message']
+    
+    def validate_message(self, value):
+        if len(value.strip()) < 10:
+            raise serializers.ValidationError("Message must be at least 10 characters")
+        return value
+
+
+class ContactResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    contact_id = serializers.IntegerField()
