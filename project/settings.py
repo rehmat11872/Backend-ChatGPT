@@ -399,6 +399,9 @@ GOOGLE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
 MICROSOFT_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
 APPlE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
 
+# Frontend URL for password reset
+FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
+
 
 
 SOCIALACCOUNT_PROVIDERS = {
