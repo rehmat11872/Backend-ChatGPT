@@ -73,3 +73,38 @@ class SummaryResponseSerializer(serializers.Serializer):
     filename = serializers.CharField()
     file_size = serializers.IntegerField()
     document_id = serializers.IntegerField()
+class ProcessDocumentSerializer(serializers.Serializer):
+    """Validates document processing and settings requests"""
+    action = serializers.ChoiceField(choices=['process', 'save', 'reset'], default='process')
+    document = serializers.FileField(required=False)
+    text = serializers.CharField(required=False)
+    output_format = serializers.ChoiceField(choices=['irac', 'executive', 'detailed', 'bullet_points'], default='irac')
+    summary_length = serializers.IntegerField(min_value=0, max_value=100, default=50)
+    confidence_threshold = serializers.IntegerField(min_value=0, max_value=100, default=85)
+    citation_style = serializers.ChoiceField(choices=['bluebook', 'apa', 'mla', 'chicago'], default='bluebook')
+    language = serializers.ChoiceField(choices=['english', 'spanish', 'french', 'german'], default='english')
+    auto_save = serializers.BooleanField(default=True)
+    key_facts = serializers.BooleanField(default=True)
+    legal_issues = serializers.BooleanField(default=True)
+    holdings_and_rulings = serializers.BooleanField(default=True)
+    recommendations = serializers.BooleanField(default=False)
+    
+    def validate(self, data):
+        action = data.get('action', 'process')
+        if action == 'process' and not data.get('document') and not data.get('text'):
+            raise serializers.ValidationError("For 'process' action: Either 'document' file or 'text' must be provided")
+        return data
+class SettingsActionSerializer(serializers.Serializer):
+    """Validates settings save/reset actions"""
+    action = serializers.ChoiceField(choices=['save', 'reset'], required=True)
+    
+    # Settings fields (only required for save action)
+    summary_length = serializers.IntegerField(min_value=0, max_value=100, required=False)
+    confidence_threshold = serializers.IntegerField(min_value=0, max_value=100, required=False)
+    key_facts = serializers.BooleanField(required=False)
+    legal_issues = serializers.BooleanField(required=False)
+    holdings_and_rulings = serializers.BooleanField(required=False)
+    recommendations = serializers.BooleanField(required=False)
+    citation_style = serializers.ChoiceField(choices=['bluebook', 'apa', 'mla', 'chicago'], required=False)
+    language = serializers.ChoiceField(choices=['english', 'spanish', 'french', 'german'], required=False)
+    auto_save = serializers.BooleanField(required=False)

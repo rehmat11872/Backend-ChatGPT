@@ -1,8 +1,8 @@
-import openai
+from openai import OpenAI
 import time
 from django.conf import settings
 
-openai.api_key = getattr(settings, "OPENAI_API_KEY", None)
+client = OpenAI(api_key=getattr(settings, "OPENAI_API_KEY", None))
 
 def call_gpt_api(prompt, text, model="gpt-3.5-turbo", max_retries=3):
     """
@@ -10,7 +10,7 @@ def call_gpt_api(prompt, text, model="gpt-3.5-turbo", max_retries=3):
     """
     for attempt in range(max_retries):
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": "You are a legal summarization assistant."},
