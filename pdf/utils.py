@@ -1,5 +1,6 @@
 import os
-import fitz
+# import fitz
+import pymupdf as fitz
 import PyPDF2
 import tempfile
 from PIL import Image
