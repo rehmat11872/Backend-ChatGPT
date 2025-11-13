@@ -4,7 +4,8 @@ Input: file object and file type
 Output: extracted text string
 Dependencies: PyMuPDF, python-docx
 """
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF
+import pymupdf as fitz
 from docx import Document
 from io import BytesIO
 
