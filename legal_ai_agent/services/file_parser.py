@@ -1,5 +1,6 @@
 import io
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF
+import pymupdf as fitz
 import docx
 from django.core.exceptions import ValidationError
 
