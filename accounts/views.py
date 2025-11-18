@@ -116,6 +116,44 @@ class GoogleLoginView(SocialLoginView):
     client_class = OAuth2Client
     
 
+    def post(self, request, *args, **kwargs):
+        print("=" * 80)
+        print("🟢 Backend - GoogleLoginView POST request received")
+        print(f"🟢 Backend - Request method: {request.method}")
+        print(f"🟢 Backend - Request path: {request.path}")
+        print(f"🟢 Backend - Request data: {request.data}")
+        print(f"🟢 Backend - GOOGLE_REDIRECT_URL from .env: {GOOGLE_REDIRECT_URL}")
+        print(f"🟢 Backend - Current callback_url (before override): {self.callback_url}")
+        
+        # Check what frontend is sending
+        if 'code' in request.data:
+            print(f"🟢 Backend - Authorization code received: {request.data['code'][:50]}...")
+        if 'redirect_uri' in request.data:
+            frontend_redirect_uri = request.data['redirect_uri']
+            print(f"🟢 Backend - Redirect URI from frontend: {frontend_redirect_uri}")
+            print(f"🟢 Backend - Overriding callback_url to match frontend redirect_uri")
+            # Override callback_url to use the redirect_uri from frontend
+            # This is critical - the redirect_uri used in token exchange must match 
+            # the one used in the initial OAuth authorization request
+            self.callback_url = frontend_redirect_uri
+            print(f"🟢 Backend - New callback_url: {self.callback_url}")
+        else:
+            print("⚠️ Backend - No redirect_uri in request.data, using default callback_url")
+        
+        try:
+            response = super().post(request, *args, **kwargs)
+            print(f"🟢 Backend - Response status: {response.status_code}")
+            print(f"🟢 Backend - Response data: {response.data}")
+            print("=" * 80)
+            return response
+        except Exception as e:
+            print(f"🔴 Backend - Error in GoogleLoginView: {str(e)}")
+            print(f"🔴 Backend - Error type: {type(e)}")
+            import traceback
+            print(f"🔴 Backend - Traceback: {traceback.format_exc()}")
+            print("=" * 80)
+            raise
+
     @property
     def username(self):
         return self.adapter.user.email
