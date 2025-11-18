@@ -289,7 +289,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:8080"
     "https://ai-lawyer.neuracase.com",
-    "https://lawtabby-frontend.netlify.app",
+    "https://lexorbit.netlify.app/",
 ]
 
 CORS_ALLOW_METHODS = [
@@ -314,8 +314,7 @@ CORS_ORIGIN_WHITELIST = (
     "http://localhost:8080",
     # 'https://lawtabby.netlify.app',
     'https://ai-lawyer.neuracase.com',
-    'https://lawtabby-new-design.netlify.app',
-    "https://lawtabby-frontend.netlify.app",
+    'https://lexorbit.netlify.app/',
 )
 
 
