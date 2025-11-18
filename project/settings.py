@@ -287,6 +287,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="", cast=Csv())
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:8080"
     "https://ai-lawyer.neuracase.com",
     "https://lawtabby-frontend.netlify.app",
 ]
@@ -309,6 +310,8 @@ CORS_ORIGIN_WHITELIST = (
     # 'http://localhost:3000',
     'http://127.0.0.1:5173',
     'http://localhost:5173',
+    "http://127.0.0.1:8080",
+    "http://localhost:8080",
     # 'https://lawtabby.netlify.app',
     'https://ai-lawyer.neuracase.com',
     'https://lawtabby-new-design.netlify.app',
@@ -394,10 +397,9 @@ OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 # Courtlisterner API settings
 COURTLISTENER_API_KEY = config("COURTLISTENER_API_KEY", default="")
 
-
-GOOGLE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
-MICROSOFT_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
-APPlE_REDIRECT_URL = 'https://ai-lawyer.neuracase.com'
+GOOGLE_REDIRECT_URL = config("GOOGLE_REDIRECT_URL")
+MICROSOFT_REDIRECT_URL = config("MICROSOFT_REDIRECT_URL", default="")
+APPlE_REDIRECT_URL  = config("APPLE_REDIRECT_URL", default="")
 
 # Frontend URL for password reset
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
@@ -405,6 +407,15 @@ FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000")
 
 
 SOCIALACCOUNT_PROVIDERS = {
+        'google': {
+        'APP': {
+            'client_id': config('GOOGLE_OAUTH2_CLIENT_ID'),
+            'secret': config('GOOGLE_OAUTH2_CLIENT_SECRET'),
+            'key': ''
+        },
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'offline'},
+    },
     'apple': {
         "APP": {
             "client_id": config('SOCIAL_APPLE_CLIENT_ID'),
@@ -429,7 +440,7 @@ AAhUAupv
 # ===========================================
 # SITE
 # ===========================================
-SITE_ID = config("SITE_ID", default=1, cast=int)
+SITE_ID = config("SITE_ID", default=2, cast=int)
 
 
 
